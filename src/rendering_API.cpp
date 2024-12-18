@@ -352,7 +352,7 @@ void GLWidget::InitCoreAOTexture() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "D:/StitchMesh4.0/high_res_AO/offset_z.png";
+	std::string z_filename = "./high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -534,7 +534,7 @@ void GLWidget::InitCoreAOTexture_Long() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "D:/StitchMesh4.0/high_res_AO/offset_z.png";
+	std::string z_filename = "./high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;

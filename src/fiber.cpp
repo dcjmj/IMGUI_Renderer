@@ -1297,7 +1297,7 @@ void Fiber::Yarn::simulate_fly_away()
 	// Step3: Sample initial fiber locations in normal plane around ply-centers using rejection sampling according
 	// to the distribution in Sec 4.1
 	// RNG rng(rng_seed);
-	std::string filename = "D:/BYSDF/fiber_random.txt";
+	std::string filename = "./fiber_random.txt";
 	std::ifstream file(filename);
 	std::vector<vec3> randoms(0);
 	std::vector<vec2i> pos(0);

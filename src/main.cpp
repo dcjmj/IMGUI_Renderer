@@ -42,8 +42,8 @@ std::vector<ks::vec3> ReadVertFromTxt(const std::string& filePath) {
 
 std::string WORK_PATH;
 int main() {
-    std::vector<int> yarn_start = ReadStartFromTxt("D:/Rendering/data_yarn/yarn_start.txt");
-    std::vector<ks::vec3> yarn_ctrP = ReadVertFromTxt("D:/Rendering/data_yarn/spline_points.txt");
+    std::vector<int> yarn_start = ReadStartFromTxt("./yarn_start.txt");
+    std::vector<ks::vec3> yarn_ctrP = ReadVertFromTxt("./spline_points.txt");
     GLWidget glwidget;
     glwidget.initializeGL();
     glwidget.render_task((float*)&yarn_ctrP[0], (int*)&yarn_start[0], yarn_start.size());
