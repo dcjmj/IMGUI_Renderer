@@ -1,0 +1,15 @@
+﻿#version 430 core                                                                   
+                                                                        
+layout (isolines) in;     
+
+in float segmentNum[];  
+in float levelNum[];            
+
+uniform sampler2D color_tex;
+			                                                       
+void main(void)                                                                     
+{    
+	vec2 var = (texture(color_tex, gl_TessCoord.xy).yz - vec2(0.5)) * 0.3 / levelNum[0];
+	gl_Position = vec4 (gl_TessCoord.xy + var, segmentNum[0], levelNum[0]); 
+	//gl_Position = vec4 (gl_TessCoord.xy + var, 0.1, 1.0);
+ }

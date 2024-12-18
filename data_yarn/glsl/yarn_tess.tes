@@ -1,0 +1,371 @@
+﻿#version 430 core                                                                   
+
+#define CORE_FIBER_WIDTH_MIN	5.5f
+#define CORE_FIBER_WIDTH_DELTA	0.5f
+
+#define M_PI		3.141592653589793238462643383279f
+#define M_PI_2		6.283185307179586476925286766559f
+#define M_PI_INV	0.318309886183790671537767526745f
+#define M_PI_2_INV	0.159154943091895335768883763372f
+#define SHADOW_BIAS 0.0001f      
+                       
+#define USE_CATMULLROM
+	                   
+layout (isolines) in;     
+
+in float arclengthTCS[];
+in float tessLevelOuter[];
+in float tessLevelInner[];
+in vec3  lod_color[];
+
+out TES_OUT
+{
+	bool is_core;
+	bool fly_away;
+	vec3 core_dir;
+	float ply_shift;
+	float fiber_thickness;
+	vec3 offset_3d;
+	vec3 ply_dir_3d;
+	vec3 fbr_dir_3d;
+	vec3 center_3d;			// world space center
+	vec4 world_pos;
+	vec3 lod_color;
+	vec3 up;
+	float curvature;
+} tes_out;
+
+uniform sampler1D	cross_section_tex;
+uniform mat4		view_matrix;
+uniform mat4		shadow_matrix;
+uniform mat4		camera_matrix;
+uniform float inv_ply_num;
+
+// fiber level parameters
+uniform float rho_min;
+uniform float rho_max;
+uniform float s_i;
+uniform float inv_alpha_fiber;
+//uniform bool use_migration;
+
+// ply level parameters
+uniform float inv_alpha_ply;
+uniform float radius_ply;
+uniform float ellipse_long;
+uniform float ellipse_short;
+uniform float fiber_thickness;
+
+// fly away
+uniform bool use_fly_away;
+uniform float radius_loop_max;
+uniform float rho_loop;
+uniform float rho_hair;
+uniform float hair_rot_scale;
+uniform float hair_len_scale;
+uniform float hair_scale;
+uniform vec3 light_dir;
+
+uniform bool use_core_flys;
+uniform float core_twist;
+uniform bool use_core_texture;
+
+uniform float scale;
+
+uniform vec3			view_dir;
+
+vec4 Bezier( float s, vec4 b0, vec4 b1, vec4 b2, vec4 b3 )
+{
+	float t = 1-s;
+	float tt = t*t;
+	float ts = t*s;
+	float ss = s*s;
+	return tt*t*b0 + 3*tt*s*b1 + 3*t*ss*b2 + s*ss*b3;
+}
+
+vec3 BezierDeriv( float s, vec3 b0, vec3 b1, vec3 b2, vec3 b3 )
+{
+	float t = 1-s;
+	return 3*t*t*(b1-b0) + 6*t*s*(b2-b1) + 3*s*s*(b3-b2);
+}
+
+vec3 BezierSecondDeriv( float s, vec3 b0, vec3 b1, vec3 b2, vec3 b3 )
+{
+	return (6-6*s)*b0 + 6*(3*s-2)*b1 + 6*(1-3*s)*b2 + 6*s*b3;
+}	
+
+/* Coefficients for Matrix M */
+
+#define M11	0.0
+#define M12	1.0
+#define M13	0.0
+#define M14	0.0
+#define M21	-0.5
+#define M22	0.0
+#define M23	0.5
+#define M24	0.0
+#define M31	1.0
+#define M32	-2.5
+#define M33	2.0
+#define M34	-0.5
+#define M41	-0.5
+#define M42	1.5
+#define M43	-1.5
+#define M44	0.5
+
+// gl_TessCoord.y is ply id
+	
+int fiber_num_per_ply;
+int period_integer;
+int fiber_idx, ply_idx;	
+
+float period_decimal;	  
+float hair_radius;         
+float ply_theta_0, ply_theta;		
+
+vec3 fiber_offset;
+vec4 fiber_center_pos_world;
+					                     
+void main(void)                                                                     
+{    
+	float t = gl_TessCoord.x;
+	float arclength = mix(arclengthTCS[0], arclengthTCS[3], t);			//t * (arclengthTCS[3] - arclengthTCS[0]) + arclengthTCS[0];
+	float arclength_prime = arclengthTCS[3] - arclengthTCS[0];
+
+	///----------------------------------------------------------------------
+	// get fiber idx and ply idx
+	///----------------------------------------------------------------------
+	int ply_num = int(round(1.0 / inv_ply_num));
+	fiber_idx = int(gl_TessCoord.y * tessLevelOuter[0]) - ply_num;
+	fiber_num_per_ply = int((tessLevelOuter[0] - ply_num) / ply_num);
+	ply_idx = int(fiber_idx / fiber_num_per_ply);
+	fiber_idx -= ply_idx * fiber_num_per_ply;
+
+	///----------------------------------------------------------------------
+	// ply level rotation
+	///----------------------------------------------------------------------
+	vec4 cross_section_point = texture(cross_section_tex, ( float(fiber_idx) + 0.5f + ply_idx * 20.0f) * 0.01667f);
+
+	vec4 c1 =							 M12*gl_in[1].gl_Position;
+    vec4 c2 = M21*gl_in[0].gl_Position							  + M23*gl_in[2].gl_Position;
+    vec4 c3 = M31*gl_in[0].gl_Position + M32*gl_in[1].gl_Position + M33*gl_in[2].gl_Position + M34*gl_in[3].gl_Position;
+    vec4 c4 = M41*gl_in[0].gl_Position + M42*gl_in[1].gl_Position + M43*gl_in[2].gl_Position + M44*gl_in[3].gl_Position;
+	
+    vec4 yarn_center = ((c4 * t + c3) * t + c2) * t + c1;
+	vec3 yarn_dir = ((3.0 * c4 * t + 2.0 * c3) * t + c2).xyz;
+
+	//get the curvature
+	vec3 second_deriva = (6.0 * c4 * t + 2.0 * c3).xyz;
+    float cross_product = length(cross(yarn_dir, second_deriva)); 
+    tes_out.curvature = cross_product / pow(length(yarn_dir), 3.0) / 500; 
+	
+	
+	vec3 T_prime = (6.0 * c4 * t + 2.0 * c3).xyz;
+
+
+	vec3 T = normalize(yarn_dir);
+	vec3 yarn_aAxis = normalize( vec3(-yarn_dir.y, yarn_dir.x, 0) );	//cross(yarn_dir, zAxis) );
+	vec3 yarn_bAxis = normalize( cross(yarn_aAxis, yarn_dir) );
+
+	///----------------------------------------------------------------------
+	//	yarn level rotation
+	///----------------------------------------------------------------------
+	ply_theta = arclength * inv_alpha_ply; 
+	if (use_core_flys && (int(gl_TessCoord.y * tessLevelOuter[0]) < ply_num))	
+		ply_theta_0 = inv_ply_num * int(gl_TessCoord.y * tessLevelOuter[0]); 
+	else
+		ply_theta_0 = inv_ply_num * ply_idx; 
+		
+	float ply_angle = (ply_theta + ply_theta_0 + 0.58f + 0.5f * inv_alpha_ply) * M_PI_2;
+	float cos_ply = cos(ply_angle);
+	float sin_ply = sin(ply_angle);	
+	vec3 ply_offset = (yarn_aAxis * sin_ply + yarn_bAxis * cos_ply) * radius_ply;
+
+	///----------------------------------------------------------------------
+	//	ply direction
+	///----------------------------------------------------------------------
+	
+	float ply_angle_prime = arclength_prime * inv_alpha_ply * M_PI_2;
+	vec3 TxU = vec3(-yarn_dir.y, yarn_dir.x, 0);
+	float TxU_len_inv = 1.0 / TxU.length;
+	vec3 T_primexU = vec3(-T_prime.y, T_prime.x, 0);	
+	vec3 a_prime = (T_primexU - TxU * (dot(TxU, T_primexU)) * TxU_len_inv * TxU_len_inv) * TxU_len_inv; 
+	vec3 axT = cross(yarn_aAxis, T);
+	float axT_length_inv = 1.0 / axT.length;
+	vec3 axT_prime = cross(a_prime, T) + cross(yarn_aAxis, T_prime); 
+	vec3 b_prime = (axT_prime - axT * dot(axT, axT_prime)  * axT_length_inv * axT_length_inv) * axT_length_inv;
+	vec3 d_prime = ( (a_prime - yarn_bAxis * ply_angle_prime) * sin_ply
+				   + (yarn_aAxis * ply_angle_prime + b_prime) * cos_ply ) * radius_ply;
+
+	vec3 ply_dir		= normalize(normalize(yarn_dir) + d_prime);
+
+	///----------------------------------------------------------------------
+	//	ply level rotation
+	///----------------------------------------------------------------------
+	vec3 ply_aAxis		= normalize( ply_offset );
+	vec3 ply_bAxis		= normalize( cross(ply_aAxis, yarn_dir) );
+
+	float fiber_theta	= arclength * inv_alpha_fiber * M_PI_2;
+	float fiber_theta_0 = cross_section_point.y + (-0.5f * inv_alpha_fiber - 0.333 * (5 - ply_idx)) * M_PI_2;	// 3 + 2
+	float fiber_angle	= fiber_theta_0 + fiber_theta;	
+	float fiber_radius	= cross_section_point.x;
+	
+	///----------------------------------------------------------------------
+	//	all different fiber types are determined based on period 
+	///----------------------------------------------------------------------				 	
+	float loop_angle	 = s_i * fiber_theta + fiber_theta_0;	
+	float cos_loop_angle = cos(loop_angle);	
+	float sin_loop_angle = sin(loop_angle);	
+	float period		 = loop_angle * M_PI_2_INV + 0.5f + floor(cross_section_point.w * 17.0f);
+
+	// get integer part & get decimal part
+	period_integer	= int( abs(period) );
+	period_decimal	= (period > 0) ? (1.0f - period + int(period)) : (-period - int(-period));
+
+	///----------------------------------------------------------------------
+	//	three type fiber: 
+	//		1. fly-away loop
+	//		2. fly-away hair
+	//		3. regular
+	///----------------------------------------------------------------------
+
+	// get new random value from cross section texture, used to determine fiber type
+	vec4 rand2 = texture(cross_section_tex, period_integer * 0.05f);
+
+	tes_out.fly_away = false;
+
+	float fiber_angle_prime = arclength_prime * inv_alpha_fiber * M_PI_2;
+	float delta_radius = radius_loop_max * rand2.z * 1.3f - rho_min;
+	float R_prime = - fiber_radius * delta_radius * sin_loop_angle * s_i * arclength_prime * inv_alpha_fiber * M_PI_2;
+
+	// fly away	loop
+	if (use_fly_away && rand2.w < rho_loop )	
+	{
+		fiber_radius *= (rho_min + delta_radius * (cos_loop_angle + 1.0f) ); 
+	}
+	// fly away hair
+	else if (use_fly_away && (rand2.w > (1.0f - rho_hair)))		
+	{
+		// make sure two direction hairs are distributed half and half
+
+		float hair_shift_len = (hair_len_scale - hair_scale * (rand2.x) * 1.45f);
+		R_prime = -cross_section_point.x * hair_len_scale * s_i * arclength_prime * inv_alpha_fiber;
+			
+		if (int(rand2.w * 100.0) % 2 == 0)	
+			hair_radius = hair_len_scale * period_decimal - hair_shift_len;	
+		else
+		{
+			hair_radius = hair_len_scale * (1.0f - period_decimal) - hair_shift_len;
+			R_prime = -R_prime;
+		}
+
+		if (hair_radius < -0.5f || period_decimal > 0.93f || period_decimal < 0.11f)	
+			tes_out.fly_away = true;
+		else
+		{
+			fiber_angle = (arclength * inv_alpha_fiber * hair_rot_scale + cross_section_point.y ) * M_PI_2;
+			fiber_angle_prime *= hair_rot_scale;
+		}
+
+		fiber_radius = cross_section_point.x * (rho_min + (max(-0.5f, hair_radius)));
+	}	
+	// regular
+	else	
+	{
+		//fiber_radius *= use_migration ? (rho_min + 0.5f * (rho_max - rho_min) * (cos_loop_angle + 1.0f)) : 1.0f;	
+		float delta_rho = 0.5f * (rho_max - rho_min);
+		fiber_radius *= (rho_min + delta_rho * (cos_loop_angle + 1.0f));
+		R_prime = -cross_section_point.x * delta_rho * sin_loop_angle * s_i * arclength_prime * inv_alpha_fiber * M_PI_2;
+	}
+
+	///----------------------------------------------------------------------
+	//	fiber direction
+	///----------------------------------------------------------------------
+	
+	float cos_fiber = cos(fiber_angle);
+	float sin_fiber = sin(fiber_angle);
+
+	float d_prime_length_inv = 1.0 / d_prime.length;
+	vec3 S_prime = (d_prime - ply_offset * dot(ply_offset, d_prime) * d_prime_length_inv * d_prime_length_inv) * d_prime_length_inv;
+	vec3 SxT_prime = cross(S_prime, T) + cross(ply_aAxis, T_prime);
+	vec3 L = cross(ply_aAxis, yarn_dir);
+	float L_length_inv = 1.0 / L.length;
+	vec3 L_prime = (SxT_prime - L * dot(L, SxT_prime) * L_length_inv * L_length_inv) * L_length_inv;
+
+	vec3 fiber_dir = yarn_dir + d_prime + ( (S_prime * cos_fiber - ply_aAxis * sin_fiber * fiber_angle_prime) * ellipse_short 
+										  + (L_prime * sin_fiber + ply_bAxis * cos_fiber * fiber_angle_prime) * ellipse_long) * fiber_radius;
+
+	///----------------------------------------------------------------------
+	//	fiber offset
+	///----------------------------------------------------------------------
+	fiber_offset	= (ply_aAxis * cos_fiber * ellipse_short + ply_bAxis * sin_fiber * ellipse_long) * fiber_radius;
+	fiber_dir		+= fiber_offset * R_prime;
+	fiber_dir		= normalize(fiber_dir);
+
+	///----------------------------------------------------------------------
+	//	output
+	///----------------------------------------------------------------------
+
+	fiber_center_pos_world		= yarn_center;
+	fiber_center_pos_world.xyz	+= ply_offset;
+
+	// core fiber
+	if (use_core_flys && (int(gl_TessCoord.y * tessLevelOuter[0]) < 2))		
+	// level 0 need to minus 1 to make the largest one is what we want
+	// since we added 1 in tcs
+	{
+		//tes_out.fiber_thickness = radius_ply * (CORE_FIBER_WIDTH_MIN + CORE_FIBER_WIDTH_DELTA * (1.0 - tessLevelOuter[0]/64.0) );
+		tes_out.fiber_thickness = radius_ply;
+		//tes_out.fiber_thickness = radius_ply * 6.1;
+		tes_out.is_core			= use_core_texture;
+		tes_out.core_dir		= ply_dir;
+		tes_out.offset_3d		= vec3(0,0,0);
+		fiber_center_pos_world.xyz -= ply_offset;
+		
+		vec3 B = normalize(view_dir - dot(view_dir, yarn_dir) * yarn_dir); 
+
+		///----------------------------------------------
+		tes_out.fly_away		= false;
+		//tes_out.ply_shift		= arclength * (inv_alpha_ply - inv_alpha_fiber) - acos(dot(B, yarn_aAxis)) * M_PI_2_INV * 0.5f;		 	
+		tes_out.ply_shift = arclength;
+	}
+	// regular fiber and fly-away fiber
+	else	
+	{
+		tes_out.fiber_thickness = fiber_thickness;
+		tes_out.is_core			= false;
+		tes_out.core_dir		= fiber_dir; 	
+		tes_out.offset_3d		= (fiber_offset + ply_offset) * 1.5;
+
+		fiber_center_pos_world.xyz += fiber_offset;
+	}
+	
+	//gl_Position = view_matrix * fiber_center_pos_world;
+	gl_Position = vec4(fiber_center_pos_world.xyz, 1.0);
+	
+	tes_out.fbr_dir_3d	= normalize(tes_out.core_dir);
+	//tes_out.core_dir	= mat3(view_matrix) * tes_out.core_dir;				
+	tes_out.core_dir	= tes_out.core_dir;		
+
+	tes_out.center_3d	= fiber_center_pos_world.xyz;
+
+	//offset for shadow calculate
+	mat4 camera_matrix_inverse = inverse(camera_matrix);
+	vec4 camera_pos_world = camera_matrix_inverse * vec4(0,0,0,1);
+	camera_pos_world = camera_pos_world / camera_pos_world.w;
+	vec3 wi1 = normalize(camera_pos_world.xyz - yarn_center.xyz);
+	vec3 bitangent = normalize(cross(tes_out.fbr_dir_3d, wi1));
+	vec3 n = normalize(cross(bitangent, tes_out.fbr_dir_3d));
+	
+	//tes_out.world_pos	= shadow_matrix * yarn_center;
+
+	//tes_out.world_pos.z -= SHADOW_BIAS;
+	
+	tes_out.world_pos = yarn_center;
+	
+	tes_out.lod_color	= lod_color[0];
+	tes_out.ply_dir_3d	= normalize(yarn_dir + d_prime);
+  
+	// up direction - self-shadow
+	float angle			= arclengthTCS[0] * inv_alpha_ply * M_PI_2 + ply_theta;
+	tes_out.up			= normalize(yarn_aAxis * sin(angle) + yarn_bAxis * cos(angle));
+}

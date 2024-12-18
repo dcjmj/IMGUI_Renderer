@@ -1,0 +1,93 @@
+#version 430 core
+
+#define	LOW_WIDTH				3.0
+#define	HIGH_WIDTH				(LOW_WIDTH*6)
+
+#define	MAX_SAMPLE_PER_YARN		8
+#define	MIN_SAMPLE_PER_YARN		3
+#define	MAX_FIBER_PER_YARN		63
+#define	MIN_FIBER_PER_YARN		3
+
+layout (vertices = 4) out;
+
+in float arclength[];
+in int visible[];
+
+out float arclengthTCS[];
+out float tessLevelOuter[];
+out float tessLevelInner[];
+out vec3  lod_color[];
+
+uniform float fiber_thickness;
+uniform float radius_ply;
+uniform mat4 view_matrix;
+uniform bool use_lod;
+
+vec3 HSV2RGB(float h) {
+    float nH = 1 + h*5;
+    float c = 1;
+    float x = 1- abs(int(nH)%2+nH-int(nH)-1);
+
+    if (nH >=0 && nH < 1)		return vec3(c, x, 0);
+	else if (nH >=1 && nH < 2)	return vec3(x, c, 0);
+	else if (nH >=2 && nH < 3)	return vec3(0, c, x);
+	else if (nH >=3 && nH < 4)	return vec3(0, x, c);
+	else if (nH >=4 && nH < 5)	return vec3(x, 0, c);
+	else if (nH >=5 && nH <= 6) return vec3(c, 0, x);
+	else						return vec3(0, 0, 0);
+}
+
+void main(void)
+{
+	vec4 seg_center = vec4((gl_in[0].gl_Position + gl_in[1].gl_Position + gl_in[2].gl_Position + gl_in[3].gl_Position).xyz * 0.25f, 1.0f);
+	vec4 dist = view_matrix * seg_center;
+	float ply_width = ((radius_ply * 6.0 / dist.w) * 960.0);	// fiber width in screen space
+
+	// it should be [3, 63]
+	// but isoline mode will remove the largest one automatically
+	// thus, we need to add 1 so [4, 64]
+
+	float fiber_number	= MAX_FIBER_PER_YARN;
+	float sample_number = MAX_SAMPLE_PER_YARN;
+
+	if (ply_width < LOW_WIDTH)	
+	{
+		fiber_number  = MIN_FIBER_PER_YARN;
+		sample_number = MIN_SAMPLE_PER_YARN;
+	}
+	else if (ply_width < HIGH_WIDTH) 
+	{
+
+		float interpolate = (ply_width - LOW_WIDTH) / (HIGH_WIDTH - LOW_WIDTH);
+		interpolate *= interpolate;
+		fiber_number  = mix( MIN_FIBER_PER_YARN,  MAX_FIBER_PER_YARN,  clamp( interpolate, 0, 1 ) );
+		sample_number = mix( MIN_SAMPLE_PER_YARN, MAX_SAMPLE_PER_YARN, clamp( interpolate*0.0625, 0, 1 ) );
+	}
+
+	if (!use_lod)
+	{
+		fiber_number  = MAX_FIBER_PER_YARN;
+		sample_number = MAX_SAMPLE_PER_YARN;
+	}
+
+	fiber_number  = 1;
+	sample_number = MAX_SAMPLE_PER_YARN;
+
+	// view frustrum clipping
+	if ( (visible[0] | visible[1] | visible[2] | visible[3]) == 0) {
+		fiber_number = 0;
+		sample_number = 0;
+	}
+	
+    if (gl_InvocationID == 0)
+    {
+        gl_TessLevelOuter[0] = floor(fiber_number);
+        gl_TessLevelOuter[1] = sample_number;
+    }
+
+    gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+	arclengthTCS[gl_InvocationID]		= arclength[gl_InvocationID];
+	tessLevelOuter[gl_InvocationID]		= fiber_number;
+	tessLevelInner[gl_InvocationID]		= sample_number;
+	lod_color[gl_InvocationID]			= HSV2RGB((fiber_number - 4.0) / 60.0);
+} 

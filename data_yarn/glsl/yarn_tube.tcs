@@ -1,0 +1,19 @@
+#version 430 core
+
+layout (vertices = 4) out;
+
+in float segmentIdx[];
+in float arclength[];
+out float arclengthTCS[];
+
+void main(void)
+{
+    if (gl_InvocationID == 0)
+    {
+        gl_TessLevelOuter[0] = 2.0;
+        gl_TessLevelOuter[1] = 40.0;
+    }
+
+    gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+	arclengthTCS[gl_InvocationID]		= arclength[gl_InvocationID];
+} 

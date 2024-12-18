@@ -1,0 +1,40 @@
+#version 430 core                                                                
+                                                                
+layout (vertices = 3) out;                                                      
+
+in float vSegmentNum[];
+out float segmentNum[];
+out float levelNum[];
+
+uniform mat4 cameraMatrix;
+uniform sampler1D yarnVerts;
+uniform float invCtrlPtsNum;
+uniform vec3 lightPos;
+
+void main(void)                                                                
+{    
+	float level = 12.0;
+
+	float tc = (0.5 + int(vSegmentNum[gl_InvocationID])*3.0 )* invCtrlPtsNum;
+	vec4 mPos1 = cameraMatrix * texture(yarnVerts, tc);
+	tc += invCtrlPtsNum;
+	vec4 mPos2 = cameraMatrix * texture(yarnVerts, tc);
+	tc += invCtrlPtsNum;
+	vec4 mPos3 = cameraMatrix * texture(yarnVerts, tc);
+	tc += invCtrlPtsNum;
+	vec4 mPos4 = cameraMatrix * texture(yarnVerts, tc);
+
+	vec4 pos = (mPos1+mPos2+mPos3+mPos4)*0.25;
+
+	vec3 distance = lightPos.xyz - pos.xyz;
+	level = max(float(int(14.0 - length(distance))), 4.0);
+
+	if (gl_InvocationID == 0)                                                      
+	{      
+		gl_TessLevelOuter[0] = level;                                                                                                                    
+		gl_TessLevelOuter[1] = level;                               
+	}                                                                             
+	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position; 
+	segmentNum[gl_InvocationID] = vSegmentNum[gl_InvocationID]; 
+	levelNum[gl_InvocationID] = level;     
+}  

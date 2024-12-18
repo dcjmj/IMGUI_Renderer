@@ -1,0 +1,244 @@
+﻿#version 430 core                                                                   
+   
+#define M_PI 3.1415926535897932384626433832795f
+#define M_PI_2 3.1415926535897932384626433832795f * 2.0f
+  
+const float tess_level_outer_0 = 60.0f;
+const float tess_level_outer_1 = 40.0f;
+
+vec3 z_axis = vec3(0.0f, 0.0f, 1.0f);
+                                                                        
+layout (isolines) in;     
+
+in float segmentIdxTCS[];
+
+out vec3 tes_fiber_dir;
+out vec3 tes_norm;	
+out vec3 tes_norm_2_center;
+out float tes_fly_away;
+
+uniform sampler1D cross_section_tex;
+uniform mat4 cameraMatrix;
+uniform mat4 modelMatrix;
+
+uniform float ply_num;
+
+// fiber level parameters
+uniform float rho_min;
+uniform float rho_max;
+uniform float s_i;
+uniform float alpha_fiber;
+uniform bool use_migration;
+
+// ply level parameters
+uniform float alpha_ply;
+uniform float radius_ply;
+uniform float ellipse_long;
+uniform float ellipse_short;
+
+// fly away
+uniform bool use_fly_away;
+uniform float radius_loop_max;
+uniform float rho_loop;
+uniform float hair_rot_scale;
+
+uniform float rot;
+
+vec4 Bezier( float s, vec4 b0, vec4 b1, vec4 b2, vec4 b3 )
+{
+	float t = 1-s;
+	float tt = t*t;
+	float ts = t*s;
+	float ss = s*s;
+	return tt*t*b0 + 3*tt*s*b1 + 3*t*ss*b2 + s*ss*b3;
+}
+
+vec3 BezierDeriv( float s, vec3 b0, vec3 b1, vec3 b2, vec3 b3 )
+{
+	float t = 1-s;
+	return 3*t*t*(b1-b0) + 6*t*s*(b2-b1) + 3*s*s*(b3-b2);
+}	
+
+// gl_TessCoord.y is ply id
+			                                                       
+void main(void)                                                                     
+{    
+	vec4 rand =  texture(cross_section_tex, gl_TessCoord.y + 0.5 / 60.0);
+
+	vec3 z = normalize(mat3(cameraMatrix) * z_axis).xyz;
+
+	float len = length(gl_in[0].gl_Position - gl_in[3].gl_Position);
+
+	vec4 center_yarn = Bezier(gl_TessCoord.x, gl_in[0].gl_Position, gl_in[1].gl_Position, gl_in[2].gl_Position, gl_in[3].gl_Position);
+
+	vec3 dir_yarn = BezierDeriv(gl_TessCoord.x, 
+								gl_in[0].gl_Position.xyz, 
+								gl_in[1].gl_Position.xyz, 
+								gl_in[2].gl_Position.xyz, 
+								gl_in[3].gl_Position.xyz);
+	
+	// determine x and y direction for yarn tube
+	vec3 aAxis_yarn = normalize( cross(dir_yarn, z.xyz) );
+	vec3 bAxis_yarn = normalize( cross(aAxis_yarn, dir_yarn) );
+
+	// ply index
+	int idx_ply = int( floor(gl_TessCoord.y * ply_num) );
+
+	//							starting angle			offset for yarn segment				
+	float theta_0_ply = (1.0 / ply_num * idx_ply + segmentIdxTCS[0] * len / alpha_ply  ) * M_PI_2;  
+
+	// increasing angle
+	float theta_ply = (gl_TessCoord.x * len / alpha_ply  ) * M_PI_2;
+
+	// ply angle
+	float angle_ply = theta_ply + theta_0_ply;
+
+	// ply offset
+	vec3 offset_ply = (aAxis_yarn * sin(angle_ply) + bAxis_yarn * cos(angle_ply)) * radius_ply;
+
+	// get yarn center for next segment for the purpose of getting ply direction
+	vec4 nxt_center_yarn = Bezier(	gl_TessCoord.x + 1.0 / tess_level_outer_1, 
+									gl_in[0].gl_Position, 
+									gl_in[1].gl_Position, 
+									gl_in[2].gl_Position, 
+									gl_in[3].gl_Position);
+
+	float nxt_angle_ply = angle_ply - M_PI_2 / tess_level_outer_1;
+
+	vec3 nxt_offset_ply = normalize(aAxis_yarn * sin(nxt_angle_ply) + bAxis_yarn * cos(nxt_angle_ply)) * radius_ply;
+
+	// ply direction
+	vec3 dir_ply = normalize( center_yarn.xyz + offset_ply - nxt_center_yarn.xyz - nxt_offset_ply );
+
+	// determine x and y direction for ply tube
+	vec3 aAxis_ply = normalize( offset_ply );
+	vec3 bAxis_ply = normalize( cross(aAxis_ply, dir_yarn) );
+
+	float theta_fiber = len / alpha_fiber * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2;
+	float theta_0_fiber = (rand.y + rot ) * M_PI_2; 
+
+	float angle_fiber = theta_0_fiber + theta_fiber;	
+
+	float radius_fiber = rand.x;
+
+	// migration
+	radius_fiber *= use_migration ? (rho_min + 0.5 * (rho_max - rho_min) * (cos(s_i * theta_fiber + theta_0_fiber) + 1)) : 1.0f;
+
+	// fly away loop
+	float period = s_i * len / alpha_fiber * (gl_TessCoord.x + segmentIdxTCS[0]) + rand.y + 0.25;
+	int periodi = 0;
+	if (period > 0) periodi = int(period);
+	if (period < 0) periodi = int(-period);
+
+	float period_offset = 0.0;
+	if (period > 0) period_offset = 1.0 - (period - int(period));
+	if (period < 0) period_offset = -period - int(-period);
+
+	vec3 offset_fiber;
+	vec4 rand2 = texture(cross_section_tex, gl_TessCoord.y + periodi * 0.1);
+	if (use_fly_away && rand2.z < rho_loop)	
+	{
+		radius_fiber *= (1.0 + 0.5 * (1.0 + sin(s_i * theta_fiber + theta_0_fiber)) * rand2.w * radius_loop_max);
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+	}
+
+//	else if (use_fly_away && (rand2.z > 0.5))
+
+/*	cotton 1 - config 3
+	else if (use_fly_away && (rand2.z > 0.5))
+*/
+/*	polyster 1 - config 11
+	else if (use_fly_away && (rand2.z > 0.7))
+*/
+/*	silk 2 - config 10
+	else if (use_fly_away && (rand2.z > 0.52))	
+*/
+/*	silk 1 - config 9
+	else if (use_fly_away && (rand2.z > 0.55))	
+*/
+/*	cotton 2 - config 8
+	else if (use_fly_away && (rand2.z > 0.6))	
+*/
+//	{
+		
+//		radius_fiber *= max(0.0, 10.0 * (period_offset) - 7.);
+//		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+//		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+
+/*	cotton 1 - config 3
+		radius_fiber *= max(1.0, 4.0 * (period_offset) - 2.);
+		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+*/
+/*	polyester 1 - config 11
+		radius_fiber *= max(0.0, 15.0 * (period_offset) - 13.0) * 2.0;
+		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+*/
+/*	silk 2 - config 10
+		radius_fiber *= max(0.0, 15.0 * (period_offset) - 13.0) * 2.0;
+		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+*/
+/*	silk 1 - config 9
+		radius_fiber *= max(0.2, 8.0 * (period_offset) - 6.);
+		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+*/
+/*	cotton 2 - config 8
+		radius_fiber *= max(1.0, 4.0 * (period_offset) - 1.);
+		angle_fiber = len / (alpha_fiber * hair_rot_scale) * (gl_TessCoord.x + segmentIdxTCS[0]) * M_PI_2 + rand.y * M_PI_2;
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+*/
+//	}
+
+	else
+	{
+		offset_fiber = (aAxis_ply * cos(angle_fiber) * ellipse_short + bAxis_ply * sin(angle_fiber) * ellipse_long) * radius_fiber;
+	}
+
+	offset_ply += offset_fiber;
+
+	// output
+	gl_Position =  cameraMatrix * modelMatrix * (center_yarn + vec4(offset_ply.xyz, 0.0) );
+	tes_fiber_dir = (cameraMatrix * modelMatrix * vec4(dir_ply, 1.0)).xyz;
+	tes_norm = offset_ply; // offset_fiber;
+	tes_norm_2_center = offset_ply;
+
+	if (use_fly_away && (rand2.z > 0.5) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+
+/*	cotton 1 - config 3
+	if (use_fly_away && (rand2.z > 0.5) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+*/
+
+/*	polyester 1 - config 11
+	if (use_fly_away && (rand2.z > 0.7) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+*/
+/*	silk 2 - config 10
+	if (use_fly_away && (rand2.z > 0.52) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+*/
+/*	silk 1 - config 9
+	if (use_fly_away && (rand2.z > 0.55) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+*/
+/*	cotton 2 - config 8
+	if (use_fly_away && (rand2.z > 0.6) && (  period_offset > 0.9 )) 
+		tes_fly_away = 1.0;
+	else
+		tes_fly_away = 0.0;
+*/
+}
