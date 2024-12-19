@@ -2361,6 +2361,13 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			qRot = vgm::Quat(1.f, 0.f, 0.f, 0.f);
 		}
 
+		if (ImGui::Button("Start/ Pause")) {
+			globals.animate = ! globals.animate;
+		}
+		if (ImGui::Button("Single Step")) {
+			globals.step = true;
+		}
+
 		//----------------------------------------------------        camera rotation/translation        ---------------------------------------------------------
 		ImGuiIO& io = ImGui::GetIO();
 
