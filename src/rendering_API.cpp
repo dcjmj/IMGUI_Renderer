@@ -334,14 +334,14 @@ void GLWidget::InitCoreAOTexture() {
 	std::cout << "Read CoreAO texture: ";
 
 	std::vector<std::string> filenames = {
-	   "./high_res_AO/AO_0.png",
-	   "./high_res_AO/AO_1.png",
-	   "./high_res_AO/AO_2.png",
-	   "./high_res_AO/AO_3.png",
-	   "./high_res_AO/AO_4.png",
-	   "./high_res_AO/AO_5.png",
-	   "./high_res_AO/AO_6.png",
-	   "./high_res_AO/AO_7.png"
+	   "data_yarn/high_res_AO/AO_0.png",
+	   "data_yarn/high_res_AO/AO_1.png",
+	   "data_yarn/high_res_AO/AO_2.png",
+	   "data_yarn/high_res_AO/AO_3.png",
+	   "data_yarn/high_res_AO/AO_4.png",
+	   "data_yarn/high_res_AO/AO_5.png",
+	   "data_yarn/high_res_AO/AO_6.png",
+	   "data_yarn/high_res_AO/AO_7.png"
 	};
 
 	std::vector<std::vector<float>> images;
@@ -352,7 +352,7 @@ void GLWidget::InitCoreAOTexture() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -516,15 +516,15 @@ void GLWidget::InitCoreAOTexture_Long() {
 	std::cout << "Read CoreAO texture: ";
 
 	std::vector<std::string> filenames = {
-	   "./high_res_AO/AO_1_Long.png",
-	   "./high_res_AO/AO_1_Long.png",
-	   "./high_res_AO/AO_2_Long.png",
-	   "./high_res_AO/AO_3_Long.png",
-	   "./high_res_AO/AO_4_Long.png",
-	   "./high_res_AO/AO_5_Long.png",
-	   "./high_res_AO/AO_6_Long.png",
-	   "./high_res_AO/AO_7_Long.png",
-	   "./high_res_AO/AO_7_Long.png"
+	   "data_yarn/high_res_AO/AO_1_Long.png",
+	   "data_yarn/high_res_AO/AO_1_Long.png",
+	   "data_yarn/high_res_AO/AO_2_Long.png",
+	   "data_yarn/high_res_AO/AO_3_Long.png",
+	   "data_yarn/high_res_AO/AO_4_Long.png",
+	   "data_yarn/high_res_AO/AO_5_Long.png",
+	   "data_yarn/high_res_AO/AO_6_Long.png",
+	   "data_yarn/high_res_AO/AO_7_Long.png",
+	   "data_yarn/high_res_AO/AO_7_Long.png"
 	};
 	std::vector<std::vector<float>> images;
 	unsigned width = 0, height = 0;
@@ -534,7 +534,7 @@ void GLWidget::InitCoreAOTexture_Long() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -679,7 +679,7 @@ void GLWidget::LoadCoreImage()
 	std::vector<unsigned char> image;
 	unsigned img_width = 0, img_height = 0;
 
-	std::string filename = "./high_res_AO/normal_post.png";
+	std::string filename = "data_yarn/high_res_AO/normal_post.png";
 	if (!loadRGBPNG(filename, image, img_width, img_height)) {
 		std::cerr << "Failed to load image: " << filename << std::endl;
 		return;
@@ -687,7 +687,7 @@ void GLWidget::LoadCoreImage()
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -810,7 +810,7 @@ void GLWidget::LoadCoreDirImage()
 	std::vector<unsigned char> image;
 	unsigned img_width = 0, img_height = 0;
 
-	std::string filename = "./high_res_AO/tangent_post.png";
+	std::string filename = "data_yarn/high_res_AO/tangent_post.png";
 	if (!loadRGBPNG(filename, image, img_width, img_height)) {
 		std::cerr << "Failed to load image: " << filename << std::endl;
 		return;
@@ -818,7 +818,7 @@ void GLWidget::LoadCoreDirImage()
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -941,7 +941,7 @@ void GLWidget::UpdateCrossSectionTexture()
 	std::cout << "Loading cross-section texture... ";
 	glGenTextures(1, &crossSectionTex);
 
-	int num = 60;
+	int num = 40;
 	std::vector<cyPoint4f>	crossSectionTextureData;
 	crossSectionTextureData.resize(num);
 
@@ -1316,20 +1316,20 @@ void GLWidget::InitObject() {
 }
 
 bool GLWidget::InitShaders() {
-	if (!shaderCheckerBoard.BuildProgramFiles("./glsl/checkerboard.vs.glsl", "./glsl/checkerboard.fs.glsl")
-		|| !shaderYarnTess.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tess.frag", "./glsl/yarn_tess.geom", "./glsl/yarn_tess.tcs", "./glsl/yarn_tess.tes")
-		|| !shaderOfflineYarn.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/yarn_tess.frag", "./glsl/offlineYarn.geom")
-		|| !shaderOfflineCore.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCore.frag", "./glsl/offlineCoreT.geom")
-		|| !shaderOfflineCoreT.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCoreT.frag", "./glsl/offlineCoreT.geom")
-		|| !shaderFrameBuffer.BuildProgramFiles("./glsl/framebuffer.vert", "./glsl/framebuffer.frag")
-		|| !shaderDepthBuffer.BuildProgramFiles("./glsl/depthbuffer.vert", "./glsl/depthbuffer.frag")
-		|| !shaderYarnTubeDepth.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/depth.frag", "./glsl/yarn_tube.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube.tes")
-		|| !shaderYarnTube.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tube.frag", "./glsl/yarn_tube.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube.tes")
-		|| !shaderFlyaway.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tube_flyaway.frag", "./glsl/yarn_tube_flyaway.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube_flyaway.tes")
-		|| !shaderYarnVerts.BuildProgramFiles("./glsl/color.vert", "./glsl/hairmeshverts.frag")
-		|| !shaderDownSample.BuildProgramFiles("./glsl/downsample.vert", "./glsl/downsample.frag")
-		|| !shaderobject.BuildProgramFiles("./glsl/head.vert", "./glsl/head.frag")
-		|| !shaderobjectshadow.BuildProgramFiles("./glsl/head.vert")
+	if (!shaderCheckerBoard.BuildProgramFiles("data_yarn/glsl/checkerboard.vs.glsl", "data_yarn/glsl/checkerboard.fs.glsl")
+		|| !shaderYarnTess.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tess.frag", "data_yarn/glsl/yarn_tess.geom", "data_yarn/glsl/yarn_tess.tcs", "data_yarn/glsl/yarn_tess.tes")
+		|| !shaderOfflineYarn.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/yarn_tess.frag", "data_yarn/glsl/offlineYarn.geom")
+		|| !shaderOfflineCore.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/offlineCore.frag", "data_yarn/glsl/offlineCoreT.geom")
+		|| !shaderOfflineCoreT.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/offlineCoreT.frag", "data_yarn/glsl/offlineCoreT.geom")
+		|| !shaderFrameBuffer.BuildProgramFiles("data_yarn/glsl/framebuffer.vert", "data_yarn/glsl/framebuffer.frag")
+		|| !shaderDepthBuffer.BuildProgramFiles("data_yarn/glsl/depthbuffer.vert", "data_yarn/glsl/depthbuffer.frag")
+		|| !shaderYarnTubeDepth.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/depth.frag", "data_yarn/glsl/yarn_tube.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube.tes")
+		|| !shaderYarnTube.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tube.frag", "data_yarn/glsl/yarn_tube.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube.tes")
+		|| !shaderFlyaway.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tube_flyaway.frag", "data_yarn/glsl/yarn_tube_flyaway.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube_flyaway.tes")
+		|| !shaderYarnVerts.BuildProgramFiles("data_yarn/glsl/color.vert", "data_yarn/glsl/hairmeshverts.frag")
+		|| !shaderDownSample.BuildProgramFiles("data_yarn/glsl/downsample.vert", "data_yarn/glsl/downsample.frag")
+		|| !shaderobject.BuildProgramFiles("data_yarn/glsl/head.vert", "data_yarn/glsl/head.frag")
+		|| !shaderobjectshadow.BuildProgramFiles("data_yarn/glsl/head.vert")
 		) return false;
 
 	shaderFlyaway.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
@@ -1654,7 +1654,7 @@ void GLWidget::initializeGL()
 	InitOfflineYarns();
 	UpdateCrossSectionTexture();
 	Init1DCylinderNormTexture();
-	InitObject();
+	// InitObject();
 
 	fiberData.g_yarn_radius = 0.02866;
 	fiberData.g_fiber_thickness = 0.008f;
@@ -1897,15 +1897,15 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			ks::vec3 c3 = ks::vec3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
 
 			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			for (int j = 0; j <= segment; j++) {
-				const float t = float(j) / float(segment);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
+			float segmentArcLen = 0.01;
+			//for (int j = 0; j <= segment; j++) {
+			//	const float t = float(j) / float(segment);
+			//	// cubic b-spline
+			//	ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
+			//	if (prevOne.x() != FLT_MAX)
+			//		segmentArcLen += (p - prevOne).norm();
+			//	prevOne = p;
+			//}
 			arclen += segmentArcLen;
 
 			float nextPos = carryThrough;
@@ -1953,14 +1953,14 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 
 			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
 			float segmentArcLen = 0;
-			for (int j = 0; j <= 10; j++) {
-				const float t = float(j) / float(10);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
+			//for (int j = 0; j <= 10; j++) {
+			//	const float t = float(j) / float(10);
+			//	// cubic b-spline
+			//	ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
+			//	if (prevOne.x() != FLT_MAX)
+			//		segmentArcLen += (p - prevOne).norm();
+			//	prevOne = p;
+			//}
 			//arclen += segmentArcLen;
 			//std::cout << i << "th segment length is " << segmentArcLen << std::endl;
 			segmentArcLen = worldSpaceStepSize;

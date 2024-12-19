@@ -597,7 +597,7 @@ namespace Fiber {
 		srand(0);
 		for (int i = 0; i < ply_num; i++) {
 			const int fiber_num = this->plys[i].fibers.size();
-#pragma omp parallel for num_threads(num_of_cores) 
+//#pragma omp parallel for num_threads(num_of_cores) 
 			for (int f = 0; f < fiber_num; f++) {
 				Fiber& fiber = this->plys[i].fibers[f];
 
@@ -1297,7 +1297,7 @@ void Fiber::Yarn::simulate_fly_away()
 	// Step3: Sample initial fiber locations in normal plane around ply-centers using rejection sampling according
 	// to the distribution in Sec 4.1
 	// RNG rng(rng_seed);
-	std::string filename = "./fiber_random.txt";
+	std::string filename = "data_yarn/fiber_random.txt";
 	std::ifstream file(filename);
 	std::vector<vec3> randoms(0);
 	std::vector<vec2i> pos(0);
