@@ -21,6 +21,7 @@
 #include "fiber.h"
 #include "ShaderTypes.h"
 #include "camera.h"
+#include "globals.h"
 
 #define			ATTRIB_VERTEX			0
 #define			ATTRIB_TEXTURE			1
@@ -343,7 +344,8 @@ struct ObjData {
 
 class GLWidget {
 public:
-	void render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num);
+	void render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num, Globals &globals);
+	void update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num);
 	void initializeGL();
 	void UpdateOfflineYarn();
 	void UpdateCrossSectionTexture();

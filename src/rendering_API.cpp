@@ -2,7 +2,7 @@
 #include "rendering_API.h"
 #include "lodepng.h"
 #include "cyPoint.h"
-
+#include "globals.h"
 void saveTexture2DAsImage(GLuint texture, const std::string& filename) {
 	std::cout << "now is " << texture << std::endl;
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -1855,135 +1855,75 @@ void GLWidget::UpdateShadowTexture()
 
 }
 
+void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
+{
+	array_Vertex.resize(0);
+	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++)
+	{
+		auto &yarn_start = first_ctrP_idx;
+		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] - 3; i++)
+		{
+			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
+			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+			array_Vertex.push_back(c0.x());
+			array_Vertex.push_back(c0.y());
+			array_Vertex.push_back(c0.z());
+			array_Vertex.push_back(0.0);
 
-void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
+			array_Vertex.push_back(c1.x());
+			array_Vertex.push_back(c1.y());
+			array_Vertex.push_back(c1.z());
+			array_Vertex.push_back(0.0);
+
+			array_Vertex.push_back(c2.x());
+			array_Vertex.push_back(c2.y());
+			array_Vertex.push_back(c2.z());
+			array_Vertex.push_back(0.0);
+
+			array_Vertex.push_back(c3.x());
+			array_Vertex.push_back(c3.y());
+			array_Vertex.push_back(c3.z());
+			array_Vertex.push_back(0.0);
+
+		}
+	}
+}
+void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num, Globals & globals)
 {
 	array_Vertex.resize(0);
 	ks::AABB3 bound;
 	bound.reset();
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
-		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 3; i += 1) {
-			ks::vec3 c0 = ks::vec3(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1 = ks::vec3(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2 = ks::vec3(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3 = ks::vec3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			for (int j = 0; j <= 10; j++) {
-				const float t = float(j) / float(10);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
-		}
-		// estimation of number of segments per patch
-		int segment = 10; // segment per patch
-
-		float worldSpaceStepSize = 0.01;
-		std::vector<ks::vec3> yarn_divided(0);
-
-		float arclen = 0;
-		// step through arclen
-		// std::cout << "segment is " << segment << " " << newsize << " " << numCurvePatches <<
-		// std::endl;
-		float carryThrough = 0.f;
-		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 3; i += 1) {
-			ks::vec3 c0 = ks::vec3(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1 = ks::vec3(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2 = ks::vec3(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3 = ks::vec3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0.01;
-			//for (int j = 0; j <= segment; j++) {
-			//	const float t = float(j) / float(segment);
-			//	// cubic b-spline
-			//	ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-			//	if (prevOne.x() != FLT_MAX)
-			//		segmentArcLen += (p - prevOne).norm();
-			//	prevOne = p;
-			//}
-			arclen += segmentArcLen;
-
-			float nextPos = carryThrough;
-			while (nextPos < segmentArcLen) {
-				float t = nextPos / segmentArcLen;
-
-				// std::cout << "nextPos is " << nextPos << "segmentarc " << segmentArcLen << std::endl;
-				//  put one
-				//  cubic b-spline
-				ks::vec3 cur_t = cubicQxy(t, c0, c1, c2, c3);
-				ks::vec3 cur_t_1 = cubicQxy(t + 0.01f, c0, c1, c2, c3);
-
-				yarn_divided.push_back(cur_t);
-
-				nextPos += worldSpaceStepSize;
-			}
-			carryThrough = nextPos - segmentArcLen;
-
-			//if (i + 3 >= Yarn_file.firstControlPoint_[yarn_idx + 1] - 3) {
-			//	// a rounding method that "on average" gets the right length
-			//	if (carryThrough < 0.5f * worldSpaceStepSize) {
-			//		float t = nextPos / segmentArcLen;
-			//		vec3 cur_t = cubicQxy(t, c0, c1, c2, c3);
-			//		vec3 cur_t_1 = cubicQxy(t + 0.01f, c0, c1, c2, c3);
-			//		yarn_divided.push_back(cur_t);
-			//	}
-			//}
-		}
-		//std::cout << yarn_idx << " 's length is " << arclen / 0.3802 << std::endl;
-		arclen = 0;
-		for (int i = 0; i < yarn_divided.size() - 3; i++) {
-
-			ks::vec3 c0, c1, c2, c3;
-			{
-				c0 = yarn_divided[i];
-				c1 = yarn_divided[i + 1];
-				c2 = yarn_divided[i + 2];
-				c3 = yarn_divided[i + 3];
-			}
+		auto &yarn_start = first_ctrP_idx;
+		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] -3; i ++ ){
+			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
+			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
 			array_Vertex.push_back(c0.x());
 			array_Vertex.push_back(c0.y());
 			array_Vertex.push_back(c0.z());
-			array_Vertex.push_back(arclen);
-			bound.expand(c0);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			//for (int j = 0; j <= 10; j++) {
-			//	const float t = float(j) / float(10);
-			//	// cubic b-spline
-			//	ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-			//	if (prevOne.x() != FLT_MAX)
-			//		segmentArcLen += (p - prevOne).norm();
-			//	prevOne = p;
-			//}
-			//arclen += segmentArcLen;
-			//std::cout << i << "th segment length is " << segmentArcLen << std::endl;
-			segmentArcLen = worldSpaceStepSize;
-			segmentArcLen = segmentArcLen / 0.38;
-			arclen += segmentArcLen;
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c1.x());
 			array_Vertex.push_back(c1.y());
 			array_Vertex.push_back(c1.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c2.x());
 			array_Vertex.push_back(c2.y());
 			array_Vertex.push_back(c2.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c3.x());
 			array_Vertex.push_back(c3.y());
 			array_Vertex.push_back(c3.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
+			bound.expand(c0);
 		}
-		std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
 	}
 	vboYarnVertCount = array_Vertex.size() / 4;
 	center = bound.center();
@@ -2001,7 +1941,8 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	float thickness = fiberData.g_yarn_radius * 10;
 	while (!glfwWindowShouldClose(window))
 	{
-
+		globals.update();
+		update_yarn_buffer(&globals.V[0][0], first_ctrP_idx, yarn_num);
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
 
