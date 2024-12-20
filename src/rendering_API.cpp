@@ -1274,6 +1274,63 @@ void GLWidget::CreateIndexBuffer(const ObjData& objData) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+void GLWidget::CreateIndexBuffer(const Mesh &mesh) {
+	std::vector<GLuint> indices;
+	auto &faces {mesh.F.cpu()};
+	for (const auto& face : faces) {
+		indices.push_back(face.v0);
+		indices.push_back(face.v1);
+		indices.push_back(face.v2);
+	}
+
+	glGenBuffers(1, &object_ibo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object_ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
+
+	std::cout << "Index Buffer Object created with " << indices.size() << " indices." << std::endl;
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void GLWidget::InitObject(const Mesh &mesh)
+{
+	auto &vertices{mesh.X.cpu()};
+	auto &normals{mesh.vertex_normals.cpu()};
+	object_tri_num = mesh.F.cpu().size();
+	{
+		glGenBuffers(1, &object_vao);
+		glBindBuffer(GL_ARRAY_BUFFER, object_vao);
+		std::vector<GLfloat> array_vertex(0);
+		for (int i = 0; i < vertices.size(); i++)
+		{
+			array_vertex.push_back(GLfloat(vertices[i].x) * 30);
+			array_vertex.push_back(GLfloat(vertices[i].y) * 30);
+			array_vertex.push_back(GLfloat(vertices[i].z) * 30);
+			array_vertex.push_back(GLfloat(normals[i].x));
+			array_vertex.push_back(GLfloat(normals[i].y));
+			array_vertex.push_back(GLfloat(normals[i].z));
+		}
+		glBufferData(GL_ARRAY_BUFFER, array_vertex.size() * sizeof(GLfloat), array_vertex.data(), GL_STATIC_DRAW);
+		// glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
+		// glEnableVertexAttribArray(0);
+
+		// glBufferData(GL_ARRAY_BUFFER, head_meshAsset.vertexCount * 6 * sizeof(GLfloat), array_vertex.data(), GL_DYNAMIC_DRAW);
+
+		// specify position attribute
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid *)0);
+		glEnableVertexAttribArray(0);
+
+		// specify major_axis attribute
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE,
+							  6 * sizeof(GLfloat), (GLvoid *)(3 * sizeof(GLfloat)));
+		glEnableVertexAttribArray(1);
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	CreateIndexBuffer(mesh);
+}
 void GLWidget::InitObject() {
 	std::string filepath = "./foot_tr.obj";
 	ObjData objData;

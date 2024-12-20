@@ -357,10 +357,12 @@ public:
 	void InitCoreAOTexture_Long();
 	bool InitShaders();
 	void InitObject();
+	void InitObject(const Mesh &mesh); 
 	void UpdateShadowTexture();
 	void UpdateConfig2OfflineYarn(Fiber::Yarn* y);
 	void ReadFrameBuffer();
 	void CreateIndexBuffer(const ObjData& objData);
+	void CreateIndexBuffer(const Mesh &mesh);
 	GLuint defaultFramebufferObject() const;
 	void InitShadowTextureBuffer();
 
