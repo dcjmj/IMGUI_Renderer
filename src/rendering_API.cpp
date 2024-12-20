@@ -1713,7 +1713,7 @@ void GLWidget::initializeGL()
 	Init1DCylinderNormTexture();
 	// InitObject();
 
-	fiberData.g_yarn_radius = 0.02866;
+	fiberData.g_yarn_radius = 0.08;
 	fiberData.g_fiber_thickness = 0.008f;
 
 	offlineCoreRenderBuffer = new OpenGLRenderBuffer;

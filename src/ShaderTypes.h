@@ -176,7 +176,7 @@ typedef struct FiberGenerationData {
 	ks::vec3 				g_aabb_micro_ct_pMax = ks::vec3(0.0498028, 0.0498028, 0.486193);
 	float 					g_ellipse_short = 0.0208841;
 	ks::vec3				g_color = ks::vec3(1.0f, 0.8f, 0.1f);
-	float 					g_yarn_radius = 0.02866;
+	float 					g_yarn_radius = 0.08;
 	float 					g_fiber_thickness = 0.008f;
 	float 					g_yarn_alpha = 0.38;
 	float 					g_fiber_num = 75;
@@ -194,17 +194,17 @@ typedef struct FiberGenerationData {
 
 	//-------------------------------------------------------------------------------
 	// fly away parameters
-	float 					g_flyaway_loop_density = 22.17;
-	float 					g_flyaway_hair_density = 33.7667;
+	float 					g_flyaway_loop_density = 120.0;
+	float 					g_flyaway_hair_density = 120.0;
 	float 					g_flyaway_hair_ze_mu = -0.00252956;
 	float 					g_flyaway_hair_ze_sigma = 0.0572919;
 	float 					g_flyaway_hair_r0_mu = 0.0197073;
 	float 					g_flyaway_hair_r0_sigma = 0.00556197;
-	float 					g_flyaway_hair_re_mu = 0.0162684;
+	float 					g_flyaway_hair_re_mu = 0.1;
 	float 					g_flyaway_hair_re_sigma = 0.00850055;
 	float 					g_flyaway_hair_pe_mu = 0.376521;
 	float 					g_flyaway_hair_pe_sigma = 0.325502;
-	float 					g_flyaway_loop_r1_mu = 0.0237306;
+	float 					g_flyaway_loop_r1_mu = 0.1;
 	float 					g_flyaway_loop_r1_sigma = 0.00537727;
 	float 					g_z_step_size = 0.01;
 	float 					g_z_step_num = 98;
