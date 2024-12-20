@@ -1996,6 +1996,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	vgm::Quat qRot = vgm::Quat(1.f, 0.f, 0.f, 0.f);
 	vgm::Vec3 lightControlDir = { 0.64f, -0.72f, 0.13f };
 	float thickness = fiberData.g_yarn_radius * 10;
+	ks::vec3 r_center = center;
 	while (!glfwWindowShouldClose(window))
 	{
 		globals.update();
@@ -2438,7 +2439,13 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		if ((mouse_pos.x != last_mouse_pos.x) || (mouse_pos.y != last_mouse_pos.y)) {
 			last_mouse_pos = mouse_pos;
 		}
-
+		if (ImGui::IsMouseDown(0))
+		{
+			ks::vec3 cam_pos = camera.GetCameraPosition();
+			ks::Frame frame((cam_pos- r_center).normalized());
+			r_center = r_center + frame.t * diff.x * 0.01f + frame.b * diff.y * 0.01f;
+			camera.SetTarget(r_center);
+		}
 		if (ImGui::IsMouseDown(1)) 
 		{
 				camera.AddRotation(diff.x * 0.01f, diff.y * 0.01f);
