@@ -790,7 +790,7 @@ float curve_up_exponential(float x) {
     return 1.0 - exp(-factor * x);
 }
 
-#define SHADOW_BIAS 0.00002f      
+#define SHADOW_BIAS 0.0002f      
 
 void main()
 {

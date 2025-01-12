@@ -1839,7 +1839,7 @@ void GLWidget::UpdateShadowTexture()
 	//specific for flame pattern
 	//g_light_pos = ks::vec3(0, 0, 40);
 	znear = 15.f;
-	zfar = 60.f;
+	zfar = 120.f;
 	fov = 60.f;
 
 
@@ -2412,7 +2412,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		
 		vgm::Mat4 modelMat4 = mat4_cast(qRot);
 		vgm::Vec4 lightdir = modelMat4 * vgm::Vec4(0, 0, 1, 1.f);
-		g_light_pos = ks::vec3(lightdir.x, lightdir.y, lightdir.z) * 25;
+		g_light_pos = ks::vec3(lightdir.x, lightdir.y, lightdir.z) * 100;
 
 		if (ImGui::Button("Reset"))
 		{
