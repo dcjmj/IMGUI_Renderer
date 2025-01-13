@@ -1997,9 +1997,11 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	vgm::Vec3 lightControlDir = { 0.64f, -0.72f, 0.13f };
 	float thickness = fiberData.g_yarn_radius * 10;
 	ks::vec3 r_center = center;
+	auto old_settings = globals.disp_settings;
 	while (!glfwWindowShouldClose(window))
 	{
-		globals.update();
+		globals.update(old_settings != globals.disp_settings);
+		old_settings = globals.disp_settings;
 		update_yarn_buffer(&globals.V[0][0], first_ctrP_idx, yarn_num);
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -2425,6 +2427,12 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		if (ImGui::Button("Single Step")) {
 			globals.step = true;
 		}
+
+		ImGui::Checkbox("Use Optimization", &globals.disp_settings.use_optim);
+		ImGui::SliderInt("XPBD Iters", &globals.disp_settings.xpbd_iters, -1, 5);
+		ImGui::SliderFloat("Side Offset", &globals.disp_settings.mRelativeExtraPointOffset, 0.1, 10.0);
+		ImGui::SliderFloat("log alpha length", &globals.disp_settings.xpbd_alpha_length, -3.0, 3.0);
+		ImGui::SliderFloat("log alpha angle", &globals.disp_settings.xpbd_alpha_angle, -3.0, 3.0);
 
 		//----------------------------------------------------        camera rotation/translation        ---------------------------------------------------------
 		ImGuiIO& io = ImGui::GetIO();
