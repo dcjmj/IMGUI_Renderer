@@ -2431,6 +2431,8 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		ImGui::Checkbox("Use Optimization", &globals.disp_settings.use_optim);
 		ImGui::SliderInt("XPBD Iters", &globals.disp_settings.xpbd_iters, -1, 5);
 		ImGui::SliderFloat("Side Offset", &globals.disp_settings.mRelativeExtraPointOffset, 0.1, 10.0);
+
+		ImGui::SliderFloat("Vertical Offset", &globals.disp_settings.mRelativeViewVerticalOffsetRadius, 0.1, 5.0);
 		ImGui::SliderFloat("log alpha length", &globals.disp_settings.xpbd_alpha_length, -3.0, 3.0);
 		ImGui::SliderFloat("log alpha angle", &globals.disp_settings.xpbd_alpha_angle, -3.0, 3.0);
 
