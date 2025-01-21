@@ -2,7 +2,7 @@
 #include "rendering_API.h"
 #include "lodepng.h"
 #include "cyPoint.h"
-
+#include "globals.h"
 void saveTexture2DAsImage(GLuint texture, const std::string& filename) {
 	std::cout << "now is " << texture << std::endl;
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -411,14 +411,14 @@ void GLWidget::InitCoreAOTexture() {
 	std::cout << "Read CoreAO texture: ";
 
 	std::vector<std::string> filenames = {
-	   "./high_res_AO/AO_0.png",
-	   "./high_res_AO/AO_1.png",
-	   "./high_res_AO/AO_2.png",
-	   "./high_res_AO/AO_3.png",
-	   "./high_res_AO/AO_4.png",
-	   "./high_res_AO/AO_5.png",
-	   "./high_res_AO/AO_6.png",
-	   "./high_res_AO/AO_7.png"
+	   "data_yarn/high_res_AO/AO_0.png",
+	   "data_yarn/high_res_AO/AO_1.png",
+	   "data_yarn/high_res_AO/AO_2.png",
+	   "data_yarn/high_res_AO/AO_3.png",
+	   "data_yarn/high_res_AO/AO_4.png",
+	   "data_yarn/high_res_AO/AO_5.png",
+	   "data_yarn/high_res_AO/AO_6.png",
+	   "data_yarn/high_res_AO/AO_7.png"
 	};
 
 	std::vector<std::vector<float>> images;
@@ -429,7 +429,7 @@ void GLWidget::InitCoreAOTexture() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -593,15 +593,15 @@ void GLWidget::InitCoreAOTexture_Long() {
 	std::cout << "Read CoreAO texture: ";
 
 	std::vector<std::string> filenames = {
-	   "./high_res_AO/AO_1_Long.png",
-	   "./high_res_AO/AO_1_Long.png",
-	   "./high_res_AO/AO_2_Long.png",
-	   "./high_res_AO/AO_3_Long.png",
-	   "./high_res_AO/AO_4_Long.png",
-	   "./high_res_AO/AO_5_Long.png",
-	   "./high_res_AO/AO_6_Long.png",
-	   "./high_res_AO/AO_7_Long.png",
-	   "./high_res_AO/AO_7_Long.png"
+	   "data_yarn/high_res_AO/AO_1_Long.png",
+	   "data_yarn/high_res_AO/AO_1_Long.png",
+	   "data_yarn/high_res_AO/AO_2_Long.png",
+	   "data_yarn/high_res_AO/AO_3_Long.png",
+	   "data_yarn/high_res_AO/AO_4_Long.png",
+	   "data_yarn/high_res_AO/AO_5_Long.png",
+	   "data_yarn/high_res_AO/AO_6_Long.png",
+	   "data_yarn/high_res_AO/AO_7_Long.png",
+	   "data_yarn/high_res_AO/AO_7_Long.png"
 	};
 	std::vector<std::vector<float>> images;
 	unsigned width = 0, height = 0;
@@ -611,7 +611,7 @@ void GLWidget::InitCoreAOTexture_Long() {
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -756,7 +756,7 @@ void GLWidget::LoadCoreImage()
 	std::vector<unsigned char> image;
 	unsigned img_width = 0, img_height = 0;
 
-	std::string filename = "./high_res_AO/normal_post.png";
+	std::string filename = "data_yarn/high_res_AO/normal_post.png";
 	if (!loadRGBPNG(filename, image, img_width, img_height)) {
 		std::cerr << "Failed to load image: " << filename << std::endl;
 		return;
@@ -764,7 +764,7 @@ void GLWidget::LoadCoreImage()
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -887,7 +887,7 @@ void GLWidget::LoadCoreDirImage()
 	std::vector<unsigned char> image;
 	unsigned img_width = 0, img_height = 0;
 
-	std::string filename = "./high_res_AO/tangent_post.png";
+	std::string filename = "data_yarn/high_res_AO/tangent_post.png";
 	if (!loadRGBPNG(filename, image, img_width, img_height)) {
 		std::cerr << "Failed to load image: " << filename << std::endl;
 		return;
@@ -895,7 +895,7 @@ void GLWidget::LoadCoreDirImage()
 
 	std::vector<unsigned char> image_z;
 	unsigned img_width_z = 0, img_height_z = 0;
-	std::string z_filename = "./high_res_AO/offset_z.png";
+	std::string z_filename = "data_yarn/high_res_AO/offset_z.png";
 	if (!loadRGBPNG(z_filename, image_z, img_width_z, img_height_z)) {
 		std::cerr << "Failed to load image: " << z_filename << std::endl;
 		return;
@@ -1018,7 +1018,7 @@ void GLWidget::UpdateCrossSectionTexture()
 	std::cout << "Loading cross-section texture... ";
 	glGenTextures(1, &crossSectionTex);
 
-	int num = 60;
+	int num = 40;
 	std::vector<cyPoint4f>	crossSectionTextureData;
 	crossSectionTextureData.resize(num);
 
@@ -1458,7 +1458,66 @@ void GLWidget::CreateIndexBuffer(const ObjData& objData) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+void GLWidget::CreateIndexBuffer(const Mesh &mesh) {
+	std::vector<GLuint> indices;
+	auto &faces {mesh.F.cpu()};
+	for (const auto& face : faces) {
+		indices.push_back(face.v0);
+		indices.push_back(face.v1);
+		indices.push_back(face.v2);
+	}
+
+	glGenBuffers(1, &object_ibo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object_ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
+
+	std::cout << "Index Buffer Object created with " << indices.size() << " indices." << std::endl;
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void GLWidget::InitObject(const Mesh &mesh)
+{
+	auto &vertices{mesh.X.cpu()};
+	auto &normals{mesh.vertex_normals.cpu()};
+	object_tri_num = mesh.F.cpu().size();
+	{
+		glGenBuffers(1, &object_vao);
+		glBindBuffer(GL_ARRAY_BUFFER, object_vao);
+		std::vector<GLfloat> array_vertex(0);
+		for (int i = 0; i < vertices.size(); i++)
+		{
+			array_vertex.push_back(GLfloat(vertices[i].x) * 30);
+			array_vertex.push_back(GLfloat(vertices[i].y) * 30);
+			array_vertex.push_back(GLfloat(vertices[i].z) * 30);
+			array_vertex.push_back(GLfloat(normals[i].x));
+			array_vertex.push_back(GLfloat(normals[i].y));
+			array_vertex.push_back(GLfloat(normals[i].z));
+		}
+		glBufferData(GL_ARRAY_BUFFER, array_vertex.size() * sizeof(GLfloat), array_vertex.data(), GL_STATIC_DRAW);
+		// glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
+		// glEnableVertexAttribArray(0);
+
+		// glBufferData(GL_ARRAY_BUFFER, head_meshAsset.vertexCount * 6 * sizeof(GLfloat), array_vertex.data(), GL_DYNAMIC_DRAW);
+
+		// specify position attribute
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid *)0);
+		glEnableVertexAttribArray(0);
+
+		// specify major_axis attribute
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE,
+							  6 * sizeof(GLfloat), (GLvoid *)(3 * sizeof(GLfloat)));
+		glEnableVertexAttribArray(1);
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	CreateIndexBuffer(mesh);
+}
 void GLWidget::InitObject(std::string filepath) {
+	if (filepath == "") 
+		filepath = "data_yarn/foot_tr.obj";
 	ObjData objData;
 	LoadObj(filepath, objData);
 
@@ -1523,21 +1582,22 @@ void GLWidget::InitObject(std::string filepath) {
 	CreateIndexBuffer(objData);
 }
 
-extern std::vector<ks::vec3> ReadVertFromTxt(const std::string& filePath);
+// extern std::vector<ks::vec3> ReadVertFromTxt(const std::string& filePath);
 bool GLWidget::InitShaders() {
-	if (!shaderCheckerBoard.BuildProgramFiles("./glsl/checkerboard.vs.glsl", "./glsl/checkerboard.fs.glsl")
-		|| !shaderYarnTess.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tess.frag", "./glsl/yarn_tess.geom", "./glsl/yarn_tess.tcs", "./glsl/yarn_tess.tes")
-		|| !shaderOfflineCore.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCore.frag", "./glsl/offlineCoreT.geom")
-		|| !shaderOfflineCoreT.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCoreT.frag", "./glsl/offlineCoreT.geom")
-		|| !shaderFrameBuffer.BuildProgramFiles("./glsl/framebuffer.vert", "./glsl/framebuffer.frag")
-		|| !shaderDepthBuffer.BuildProgramFiles("./glsl/depthbuffer.vert", "./glsl/depthbuffer.frag")
-		|| !shaderYarnTubeDepth.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/depth.frag", "./glsl/yarn_tube.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube.tes")
-		|| !shaderYarnTube.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tube.frag", "./glsl/yarn_tube.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube.tes")
-		|| !shaderFlyaway.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tube_flyaway.frag", "./glsl/yarn_tube_flyaway.geom", "./glsl/yarn_tube.tcs", "./glsl/yarn_tube_flyaway.tes")
-		|| !shaderYarnVerts.BuildProgramFiles("./glsl/color.vert", "./glsl/hairmeshverts.frag")
-		|| !shaderDownSample.BuildProgramFiles("./glsl/downsample.vert", "./glsl/downsample.frag")
-		|| !shaderobject.BuildProgramFiles("./glsl/head.vert", "./glsl/head.frag")
-		|| !shaderobjectshadow.BuildProgramFiles("./glsl/head.vert")
+	if (!shaderCheckerBoard.BuildProgramFiles("data_yarn/glsl/checkerboard.vs.glsl", "data_yarn/glsl/checkerboard.fs.glsl")
+		|| !shaderYarnTess.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tess.frag", "data_yarn/glsl/yarn_tess.geom", "data_yarn/glsl/yarn_tess.tcs", "data_yarn/glsl/yarn_tess.tes")
+		|| !shaderOfflineYarn.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/yarn_tess.frag", "data_yarn/glsl/offlineYarn.geom")
+		|| !shaderOfflineCore.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/offlineCore.frag", "data_yarn/glsl/offlineCoreT.geom")
+		|| !shaderOfflineCoreT.BuildProgramFiles("data_yarn/glsl/offlineYarn.vert", "data_yarn/glsl/offlineCoreT.frag", "data_yarn/glsl/offlineCoreT.geom")
+		|| !shaderFrameBuffer.BuildProgramFiles("data_yarn/glsl/framebuffer.vert", "data_yarn/glsl/framebuffer.frag")
+		|| !shaderDepthBuffer.BuildProgramFiles("data_yarn/glsl/depthbuffer.vert", "data_yarn/glsl/depthbuffer.frag")
+		|| !shaderYarnTubeDepth.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/depth.frag", "data_yarn/glsl/yarn_tube.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube.tes")
+		|| !shaderYarnTube.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tube.frag", "data_yarn/glsl/yarn_tube.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube.tes")
+		|| !shaderFlyaway.BuildProgramFiles("data_yarn/glsl/yarn_tess.vert", "data_yarn/glsl/yarn_tube_flyaway.frag", "data_yarn/glsl/yarn_tube_flyaway.geom", "data_yarn/glsl/yarn_tube.tcs", "data_yarn/glsl/yarn_tube_flyaway.tes")
+		|| !shaderYarnVerts.BuildProgramFiles("data_yarn/glsl/color.vert", "data_yarn/glsl/hairmeshverts.frag")
+		|| !shaderDownSample.BuildProgramFiles("data_yarn/glsl/downsample.vert", "data_yarn/glsl/downsample.frag")
+		|| !shaderobject.BuildProgramFiles("data_yarn/glsl/head.vert", "data_yarn/glsl/head.frag")
+		|| !shaderobjectshadow.BuildProgramFiles("data_yarn/glsl/head.vert")
 		) return false;
 
 	shaderFlyaway.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
@@ -1958,8 +2018,13 @@ void GLWidget::initializeGL()
 
 	adjust_color = ks::vec3(1, 1, 1);
 	biasValue = -10;
+	//Initialization of buffers
+	InitOfflineYarns();
+	UpdateCrossSectionTexture();
+	Init1DCylinderNormTexture();
+	// InitObject();
 
-	fiberData.g_yarn_radius = 0.02866;
+	fiberData.g_yarn_radius = 0.08;
 	fiberData.g_fiber_thickness = 0.008f;
 
 	offlineCoreRenderBuffer = new OpenGLRenderBuffer;
@@ -1973,7 +2038,7 @@ void GLWidget::initializeGL()
 	//Initialization of buffers
 	InitOfflineYarns();
 	UpdateCrossSectionTexture();
-	std::string filepath = "./rib_handles/1.obj";
+	std::string filepath = "data_yarn/rib_handles/1.obj";
 	InitObject(filepath);
 
 	SSAARenderBuffer = new OpenGLRenderBuffer;
@@ -1986,7 +2051,7 @@ void GLWidget::initializeGL()
 
 	//env map loading
 	//std::string SRBF_p_file = "D:/StitchMesh4.0/precompute/16/16lobe.txt";
-	std::string SRBF_p_file = "./precompute/fit.txt";
+	std::string SRBF_p_file = "data_yarn/precompute/fit.txt";
 	readSRBFParameters(SRBF_p_file, lambdas_final, centers_final, weights);
 	weights_final = weights;
 	
@@ -2061,7 +2126,7 @@ void GLWidget::initializeGL()
 	//fiberData.g_color[2] = g_color_chart[g_shading_idx - 1][2];
 
 	//env map baking
-	LoadIntegration("./precompute/table_green.png");
+	LoadIntegration("data_yarn/precompute/table_green.png");
 	createRandomTexture(1024, 1024);
 
 	g_shading_idx = 1;
@@ -2176,7 +2241,7 @@ void GLWidget::UpdateShadowTexture()
 	//specific for flame pattern
 	//g_light_pos = ks::vec3(0, 0, 40);
 	znear = 15.f;
-	zfar = 60.f;
+	zfar = 120.f;
 	fov = 60.f;
 
 
@@ -2433,61 +2498,76 @@ void GLWidget::LoadIntegration(char* filename)
 
 	delete[] pixels;
 }
+void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
+{
+	array_Vertex.resize(0);
+	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++)
+	{
+		auto &yarn_start = first_ctrP_idx;
+		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] - 3; i++)
+		{
+			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
+			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+			array_Vertex.push_back(c0.x());
+			array_Vertex.push_back(c0.y());
+			array_Vertex.push_back(c0.z());
+			array_Vertex.push_back(0.0);
 
-void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
+			array_Vertex.push_back(c1.x());
+			array_Vertex.push_back(c1.y());
+			array_Vertex.push_back(c1.z());
+			array_Vertex.push_back(0.0);
+
+			array_Vertex.push_back(c2.x());
+			array_Vertex.push_back(c2.y());
+			array_Vertex.push_back(c2.z());
+			array_Vertex.push_back(0.0);
+
+			array_Vertex.push_back(c3.x());
+			array_Vertex.push_back(c3.y());
+			array_Vertex.push_back(c3.z());
+			array_Vertex.push_back(0.0);
+
+		}
+	}
+}
+void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num, Globals & globals)
 {
 	array_Vertex.resize(0);
 	ks::AABB3 bound;
 	bound.reset();
 	float arclen = 0;
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
-		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 15; i += 1) {
-
-			ks::vec3 c0, c1, c2, c3;
-			{
-				c0 = ks::vec3(Yarn_ctrPoints[i * 3 + 0], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-				c1 = ks::vec3(Yarn_ctrPoints[i * 3 + 3], Yarn_ctrPoints[i * 3 + 4], Yarn_ctrPoints[i * 3 + 5]);
-				c2 = ks::vec3(Yarn_ctrPoints[i * 3 + 6], Yarn_ctrPoints[i * 3 + 7], Yarn_ctrPoints[i * 3 + 8]);
-				c3 = ks::vec3(Yarn_ctrPoints[i * 3 + 9], Yarn_ctrPoints[i * 3 + 10], Yarn_ctrPoints[i * 3 + 11]);
-			}
+		auto &yarn_start = first_ctrP_idx;
+		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] -3; i ++ ){
+			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
+			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
 			array_Vertex.push_back(c0.x());
 			array_Vertex.push_back(c0.y());
 			array_Vertex.push_back(c0.z());
-			array_Vertex.push_back(arclen);
-			bound.expand(c0);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			for (int j = 0; j <= 10; j++) {
-				const float t = float(j) / float(10);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
-			//arclen += segmentArcLen;
-			//std::cout << i << "th segment length is " << segmentArcLen << std::endl;
-			segmentArcLen = segmentArcLen;
-			arclen += segmentArcLen;
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c1.x());
 			array_Vertex.push_back(c1.y());
 			array_Vertex.push_back(c1.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c2.x());
 			array_Vertex.push_back(c2.y());
 			array_Vertex.push_back(c2.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
 			array_Vertex.push_back(c3.x());
 			array_Vertex.push_back(c3.y());
 			array_Vertex.push_back(c3.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex.push_back(0.0);
 
+			bound.expand(c0);
 		}
-		std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
 	}
 	vboYarnVertCount = array_Vertex.size() / 4;
 	center = bound.center();
@@ -2512,9 +2592,12 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	int save_frame = 0;
 	int Frame = 0;
 	bool sequence_save = false;
+	auto old_settings = globals.disp_settings;
 	while (!glfwWindowShouldClose(window))
 	{
-
+		globals.update(old_settings != globals.disp_settings);
+		old_settings = globals.disp_settings;
+		update_yarn_buffer(&globals.V[0][0], first_ctrP_idx, yarn_num);
 		int display_w, display_h;
 		glfwGetFramebufferSize(window, &display_w, &display_h);
 
@@ -3027,12 +3110,27 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 
 		vgm::Mat4 modelMat4 = mat4_cast(qRot);
 		vgm::Vec4 lightdir = modelMat4 * vgm::Vec4(0, 0, 1, 1.f);
-		g_light_pos = ks::vec3(lightdir.x, lightdir.y, lightdir.z) * 25;
+		g_light_pos = ks::vec3(lightdir.x, lightdir.y, lightdir.z) * 100;
 
 		if (ImGui::Button("Reset"))
 		{
 			qRot = vgm::Quat(1.f, 0.f, 0.f, 0.f);
 		}
+
+		if (ImGui::Button("Start/ Pause")) {
+			globals.animate = ! globals.animate;
+		}
+		if (ImGui::Button("Single Step")) {
+			globals.step = true;
+		}
+
+		ImGui::Checkbox("Use Optimization", &globals.disp_settings.use_optim);
+		ImGui::SliderInt("XPBD Iters", &globals.disp_settings.xpbd_iters, -1, 5);
+		ImGui::SliderFloat("Side Offset", &globals.disp_settings.mRelativeExtraPointOffset, 0.1, 10.0);
+
+		ImGui::SliderFloat("Vertical Offset", &globals.disp_settings.mRelativeViewVerticalOffsetRadius, 0.1, 5.0);
+		ImGui::SliderFloat("log alpha length", &globals.disp_settings.xpbd_alpha_length, -3.0, 3.0);
+		ImGui::SliderFloat("log alpha angle", &globals.disp_settings.xpbd_alpha_angle, -3.0, 3.0);
 
 		//----------------------------------------------------        camera rotation/translation        ---------------------------------------------------------
 		ImGuiIO& io = ImGui::GetIO();
@@ -3049,6 +3147,17 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			last_mouse_pos = mouse_pos;
 		}
 
+		if (ImGui::IsMouseDown(0))
+		{
+			ks::vec3 cam_pos = camera.GetCameraPosition();
+			ks::Frame frame((cam_pos- r_center).normalized());
+			r_center = r_center + frame.t * diff.x * 0.01f + frame.b * diff.y * 0.01f;
+			camera.SetTarget(r_center);
+		}
+		if (ImGui::IsMouseDown(1)) 
+		{
+			camera.AddRotation(diff.x * 0.01f, diff.y * 0.01f);
+		}
 		ks::vec2 move_Dist(0, 0);
 		if (ImGui::IsKeyDown(ImGuiKey_W)) {
 			move_Dist.y() += speed; // W - 向上移动
@@ -3160,7 +3269,8 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		if (sequence_save) {
 			std::string	fileName = "./rib/spline_points" + std::to_string(Frame) + ".txt";
 			//std::string	fileName = "D:/StitchMesh4.0/flame/spline_points" + std::to_string(Frame) + ".txt";
-			std::vector<ks::vec3> yarn_ctrP_new = ReadVertFromTxt(fileName);
+			// std::vector<ks::vec3>& yarn_ctrP_new = ReadVertFromTxt(fileName);
+			std::vector<ks::vec3>& yarn_ctrP_new = globals.V;
 			int writein_cnt = 0;
 			for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
 				for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 15; i += 1) {
@@ -3195,7 +3305,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 				}
 				std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
 			}
-			std::string filepath = "./rib_handles/" + std::to_string(Frame) + ".obj";
+			std::string filepath = "data_yarn/rib_handles/" + std::to_string(Frame) + ".obj";
 			InitObject(filepath);
 			Frame++;
 			UpdateEnvShadowTexture();
@@ -3205,7 +3315,8 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		if (ImGui::SliderInt("Frame_Cnt", &Frame, 0, 50)) {
 			std::string	fileName = "./rib/spline_points" + std::to_string(Frame) + ".txt";
 			//std::string	fileName = "D:/StitchMesh4.0/flame/spline_points" + std::to_string(Frame) + ".txt";
-			std::vector<ks::vec3> yarn_ctrP_new = ReadVertFromTxt(fileName);
+			// std::vector<ks::vec3> yarn_ctrP_new = ReadVertFromTxt(fileName);
+			std::vector<ks::vec3>& yarn_ctrP_new = globals.V;
 			int writein_cnt = 0;
 			for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
 				float arclen = 0;
@@ -3241,7 +3352,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 				}
 				std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
 			}
-			std::string filepath = "./rib_handles/" + std::to_string(Frame) + ".obj";
+			std::string filepath = "data_yarn/rib_handles/" + std::to_string(Frame) + ".obj";
 			InitObject(filepath);
 			Frame++;
 			UpdateEnvShadowTexture();
