@@ -2501,6 +2501,7 @@ void GLWidget::LoadIntegration(char* filename)
 void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
 {
 	array_Vertex.resize(0);
+	float arclen = 0;
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++)
 	{
 		auto &yarn_start = first_ctrP_idx;
@@ -2510,25 +2511,37 @@ void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, in
 			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
 			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
 			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+
+			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+			float segmentArcLen = 0;
+			for (int j = 0; j <= 10; j++) {
+				const float t = float(j) / float(10);
+				// cubic b-spline
+				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
+				if (prevOne.x() != FLT_MAX)
+					segmentArcLen += (p - prevOne).norm();
+				prevOne = p;
+			}
 			array_Vertex.push_back(c0.x());
 			array_Vertex.push_back(c0.y());
 			array_Vertex.push_back(c0.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
+			arclen += segmentArcLen;
 
 			array_Vertex.push_back(c1.x());
 			array_Vertex.push_back(c1.y());
 			array_Vertex.push_back(c1.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 			array_Vertex.push_back(c2.x());
 			array_Vertex.push_back(c2.y());
 			array_Vertex.push_back(c2.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 			array_Vertex.push_back(c3.x());
 			array_Vertex.push_back(c3.y());
 			array_Vertex.push_back(c3.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 		}
 	}
@@ -2546,25 +2559,37 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
 			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
 			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+
+			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+			float segmentArcLen = 0;
+			for (int j = 0; j <= 10; j++) {
+				const float t = float(j) / float(10);
+				// cubic b-spline
+				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
+				if (prevOne.x() != FLT_MAX)
+					segmentArcLen += (p - prevOne).norm();
+				prevOne = p;
+			}
 			array_Vertex.push_back(c0.x());
 			array_Vertex.push_back(c0.y());
 			array_Vertex.push_back(c0.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
+			arclen += segmentArcLen;
 
 			array_Vertex.push_back(c1.x());
 			array_Vertex.push_back(c1.y());
 			array_Vertex.push_back(c1.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 			array_Vertex.push_back(c2.x());
 			array_Vertex.push_back(c2.y());
 			array_Vertex.push_back(c2.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 			array_Vertex.push_back(c3.x());
 			array_Vertex.push_back(c3.y());
 			array_Vertex.push_back(c3.z());
-			array_Vertex.push_back(0.0);
+			array_Vertex.push_back(arclen);
 
 			bound.expand(c0);
 		}
