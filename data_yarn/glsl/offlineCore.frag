@@ -21,4 +21,5 @@ float radius_fiber_min = 0.033f;
 
 void main()
 {	
+	//color = vec4(0.8,0.8,0.8,1.0);
 }

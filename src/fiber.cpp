@@ -1281,15 +1281,68 @@ void Fiber::Yarn::createCrossSectionSamples()
 	}
 }
 
+
+float randomFloat(float min, float max) {
+	static std::mt19937 generator(std::random_device{}());
+	std::uniform_real_distribution<float> distribution(min, max);
+	return distribution(generator);
+}
+
+ks::vec3 perturbDirection(const ks::vec3& direction, float maxAngleRadians) {
+	ks::vec2 uv;
+	uv.x() = randomFloat(0.0f, 1.0f);
+	uv.y() = randomFloat(0.0f, 1.0f);
+
+	ks::vec3 normalizedDirection = direction.normalized();
+
+	float theta = uv.x() * maxAngleRadians;
+	float phi = uv.y() * 2.0f * ks::pi;
+
+	ks::vec3 randomOffset(
+		std::sin(theta) * std::cos(phi),
+		std::sin(theta) * std::sin(phi),
+		std::cos(theta)
+	);
+
+	ks::Frame frame(normalizedDirection);
+
+	ks::vec3 perturbedDirection = frame.to_world(randomOffset).normalized();
+	return perturbedDirection;
+}
+
+float gradientFunction(float t, float r0, float re, float T, float beta, float k, float omega) {
+	float A = 1 - std::exp(-beta);
+	float gamma = beta * std::exp(-beta) / (1 - std::exp(-beta));
+	if (t <= T) {
+		return r0 + re * (1 - exp(-beta * t / T));
+	}
+	else {
+		double descending = A * std::exp(-gamma * (t - T) / T) * (1 + k * std::sin(omega * (t - T)));
+		return r0 + re * descending;
+	}
+}
+
+float calculateY(float x, float z0, float t, float ze, float gamma, float alpha = 1.0f) {
+	if (x <= t) {
+		// Left side of the peak (rising side)
+		float scale = x / t;
+		return z0 + ze * (1.0f - std::pow(1.0f - scale, alpha));
+	}
+	else {
+		// Right side of the peak (falling side)
+		float scale = (x - t) / (1.0f - t);
+		return z0 + ze * (1.0f - std::pow(scale, alpha) * gamma);
+	}
+}
+
 void Fiber::Yarn::simulate_fly_away()
-{
-	// Step1: Obtain center of yarn starting point
+{// Step1: Obtain center of yarn starting point
 	const vec3 base_center(0, 0, 0);
 	const float base_radius = yarn_radius;
 	const int ply_num = this->plys.size();
 	// Step2: Sample initial locations of ply-centers in normal plane around starting point
 	for (int i = 0; i < ply_num; i++) {
-		float angle = 2 * pi * i / ply_num;
+		float angle = 2 * pi * i / ply_num + 0.5 * pi;
 		this->plys[i].base_theta = angle;
 		this->plys[i].base_center = vec3(base_radius / 2 * std::cosf(angle), base_radius / 2 * std::sinf(angle), 0);
 	}
@@ -1297,7 +1350,7 @@ void Fiber::Yarn::simulate_fly_away()
 	// Step3: Sample initial fiber locations in normal plane around ply-centers using rejection sampling according
 	// to the distribution in Sec 4.1
 	// RNG rng(rng_seed);
-	std::string filename = "./fiber_random.txt";
+	std::string filename = "D:/BYSDF/fiber_random.txt";
 	std::ifstream file(filename);
 	std::vector<vec3> randoms(0);
 	std::vector<vec2i> pos(0);
@@ -1362,8 +1415,11 @@ void Fiber::Yarn::simulate_fly_away()
 	std::vector<std::vector<std::vector<float>>> rVals(ply_num);
 	std::normal_distribution<float> distrbn;
 	std::uniform_real_distribution<float> distrbr;
-	std::mt19937 engine;
-	engine.seed(41);
+
+	std::random_device rd;
+
+	std::mt19937 engine(rd());
+
 	// std::cout << this->z_step_num << std::endl;
 #pragma omp parallel for num_threads(num_of_cores) 
 	for (int i = 0; i < ply_num; i++) {
@@ -1465,8 +1521,6 @@ void Fiber::Yarn::simulate_fly_away()
 	if (this->use_flyaways) {
 		std::uniform_real_distribution<float> distrb1;
 		std::normal_distribution<float> distrb2;
-		std::mt19937 engine;
-		engine.seed(41);
 
 		const float sig_scale_hair = 0.5f, sig_scale_loop = 0.5f;
 		const int min_loop_span = 10;
@@ -1489,7 +1543,7 @@ void Fiber::Yarn::simulate_fly_away()
 					const Fiber& curFiber = this->plys[i].fibers[j];
 					int totVtx = static_cast<int>(curFiber.vertices.size());
 					for (int k = 1; k + 1 < totVtx; ++k)
-						if (rVals[i][j][k] > rVals[i][j][k - 1] && rVals[i][j][k] > rVals[i][j][k + 1]){
+						if (rVals[i][j][k] > rVals[i][j][k - 1] && rVals[i][j][k] > rVals[i][j][k + 1]) {
 							locs.push_back(vec2i(j, k));
 						}
 				}
@@ -1552,6 +1606,7 @@ void Fiber::Yarn::simulate_fly_away()
 
 			int nhair = static_cast<int>(std::floor(plys[i].flyaway_hair_density * zextent + 0.5f));
 			for (int j = 0; j < nhair;) {
+				float hairtype = randomFloat(0, 1);
 				Fiber fiber;
 				float z0 = this->aabb_micro_ct.pMin.z() + distrb1(engine) * zextent;
 
@@ -1587,57 +1642,179 @@ void Fiber::Yarn::simulate_fly_away()
 				float pe =
 					plys[i].flyaway_hair_pe_mu + sig_scale_hair * plys[i].flyaway_hair_pe_sigma * distrb2(engine);
 
-				// float pe = plys[i].flyaway_hair_pe_mu + plys[i].flyaway_hair_pe_sigma*distrb1(engine);
-
-				/* Extrapolation */
-
-				// float r0_e = 0.0f, re_e = r0 + re;
-				// float z0_e = z0 - ze * r0 / re, ze_e = ze + ze * r0 / re;
-				// float p0_e = p0 - pe * r0 / re, pe_e = pe + pe * r0 / re;
-
-				// if (ze < 0) printf("warning! negative ze: %f", ze);
-
 				int nstep = 24;
+				std::vector<vec3> vars(0);
 
-				std::vector<vec3> vars;
-				for (int k = 0; k <= nstep; ++k) {
-					vec3 cur;
-					// cur[0] = r0_e + re_e * static_cast<float>(k) / static_cast<float>(nstep);
-					// cur[1] = z0_e + ze_e * static_cast<float>(k) / static_cast<float>(nstep);
-					// cur[2] = p0_e + pe_e * static_cast<float>(k) / static_cast<float>(nstep);
+				if (hairtype > 0.8) {
+					// parabolic type
 
-					cur[0] = r0 + re * static_cast<float>(k) / static_cast<float>(nstep);
-					cur[1] = z0 + ze * static_cast<float>(k) / static_cast<float>(nstep);
+					float t = randomFloat(0.7, 0.95);   // x-coordinate of the peak
+					float alpha = randomFloat(1.4, 3); // Asymmetry factor
+					float gamma = randomFloat(0.0, 0.2); // descent factor
 
-					// p0 + cur[1] * 2 * Zhao::pi / this->plys[i].alpha; //
-					cur[2] = p0 + pe * static_cast<float>(k) / static_cast<float>(nstep);
+					for (int k = 0; k <= nstep; ++k) {
+						vec3 cur;
+						// cur[0] = r0_e + re_e * static_cast<float>(k) / static_cast<float>(nstep);
+						// cur[1] = z0_e + ze_e * static_cast<float>(k) / static_cast<float>(nstep);
+						// cur[2] = p0_e + pe_e * static_cast<float>(k) / static_cast<float>(nstep);
 
-					vars.push_back(cur);
-				}
+						float x = static_cast<float>(k) / static_cast<float>(nstep);
+						cur[0] = calculateY(x, r0, t, re, gamma, alpha);
+						cur[1] = z0 + ze * static_cast<float>(k) / static_cast<float>(nstep);
 
-				/* Creating fiber curve */
+						// p0 + cur[1] * 2 * Zhao::pi / this->plys[i].alpha; //
+						cur[2] = p0 + pe * static_cast<float>(k) / static_cast<float>(nstep);
 
-				bool visible = false;
-				for (int k = 0; k <= nstep; ++k) {
-					const vec3& cur = vars[k];
-					vec3 pos;
-					pos[0] = cur[0] * std::cos(cur[2]);
-					pos[1] = cur[0] * std::sin(cur[2]);
-					pos[2] = cur[1];
-					// Crop flyaway fibers using the ply's bounding box
-					if (pos[2] < this->aabb_micro_ct.pMin.z() || pos[2] > this->aabb_micro_ct.pMax.z())
-						break;
+						//float diff_ze = plys[i].flyaway_loop_r1_sigma * distrb2(engine); //+ plys[i].flyaway_hair_ze_sigma*distrb1(engine);
+						//ze += diff_ze;
 
-					if ((cur[0] < balance_radius) && (!visible)) {
-						visible = true;
-						fiber.vertices.resize(0);
+						//float diff_re = 0;
+						//for (;;) {
+						//	diff_re = plys[i].flyaway_loop_r1_sigma * distrb2(engine);
+						//	if (diff_re + re > 0) {
+						//		re = diff_re + re;
+						//		break;
+						//	}
+						//}
+
+						//float diff_pe = plys[i].flyaway_loop_r1_sigma * distrb2(engine);
+						//pe += diff_pe;
+
+						vars.push_back(cur);
 					}
-					fiber.vertices.push_back(pos + this->plys[i].base_center);
+
+					//std::cout << " r0 is " << r0 << " re is " << re << std::endl;
+					/* Creating fiber curve */
+
+					bool visible = false;
+					for (int k = 0; k <= nstep; ++k) {
+						const vec3& cur = vars[k];
+						vec3 pos;
+						pos[0] = cur[0] * std::cos(cur[2]);
+						pos[1] = cur[0] * std::sin(cur[2]);
+						pos[2] = cur[1];
+						// Crop flyaway fibers using the ply's bounding box
+						if ((pos[2] < this->aabb_micro_ct.pMin.z()) || (pos[2] > this->aabb_micro_ct.pMax.z()))
+							break;
+
+						if ((cur[0] < balance_radius) && (!visible)) {
+							visible = true;
+							fiber.vertices.resize(0);
+						}
+						fiber.vertices.push_back(pos + this->plys[i].base_center);
+					}
+					if (fiber.vertices.size() > 3) {
+						plys[i].num_hair_fibers++;
+						this->plys[i].fibers.push_back(fiber);
+						++j;
+					}
 				}
-				if (fiber.vertices.size() > 3) {
-					plys[i].num_hair_fibers++;
-					this->plys[i].fibers.push_back(fiber);
-					++j;
+				else if (hairtype > 0.5) {
+
+					// ALL Random direction start from first step
+
+					vec3 p_cur;
+					p_cur[0] = r0 * std::cos(p0);
+					p_cur[1] = r0 * std::sin(p0);
+					p_cur[2] = z0;
+					vec3 dir;
+					float step_size = 0;
+					vars.push_back(p_cur);
+					{
+						vec3 cur;
+						cur[0] = r0 + re;
+						cur[1] = z0 + ze;
+
+						// p0 + cur[1] * 2 * Zhao::pi / this->plys[i].alpha; //
+						cur[2] = p0 + pe;
+
+						vec3 p0;
+						p0[0] = cur[0] * std::cos(cur[2]);
+						p0[1] = cur[0] * std::sin(cur[2]);
+						p0[2] = cur[1];
+						dir = (p0 - p_cur);
+						step_size = dir.norm() / nstep;
+						dir = dir.normalized();
+					}
+
+					for (int k = 1; k <= nstep; k++) {
+						dir = perturbDirection(dir, 0.5);
+						p_cur = p_cur + step_size * dir;
+						vars.push_back(p_cur);
+					}
+
+					for (int k = 0; k <= nstep; ++k) {
+						const vec3& cur = vars[k];
+						vec3 pos = cur;
+						// Crop flyaway fibers using the ply's bounding box
+						if ((pos[2] < this->aabb_micro_ct.pMin.z()) || (pos[2] > this->aabb_micro_ct.pMax.z()))
+							break;
+
+						fiber.vertices.push_back(pos + this->plys[i].base_center);
+					}
+					if (fiber.vertices.size() > 3) {
+						plys[i].num_hair_fibers++;
+						this->plys[i].fibers.push_back(fiber);
+						++j;
+					}
+				}
+				else {
+					// Shuang's version
+
+					for (int k = 0; k <= nstep; ++k) {
+						vec3 cur;
+						// cur[0] = r0_e + re_e * static_cast<float>(k) / static_cast<float>(nstep);
+						// cur[1] = z0_e + ze_e * static_cast<float>(k) / static_cast<float>(nstep);
+						// cur[2] = p0_e + pe_e * static_cast<float>(k) / static_cast<float>(nstep);
+
+						cur[0] = r0 + re * static_cast<float>(k) / static_cast<float>(nstep);
+						cur[1] = z0 + ze * static_cast<float>(k) / static_cast<float>(nstep);
+
+						// p0 + cur[1] * 2 * Zhao::pi / this->plys[i].alpha; //
+						cur[2] = p0 + pe * static_cast<float>(k) / static_cast<float>(nstep);
+
+						//float diff_ze = plys[i].flyaway_loop_r1_sigma * distrb2(engine); //+ plys[i].flyaway_hair_ze_sigma*distrb1(engine);
+						//ze += diff_ze;
+
+						//float diff_re = 0;
+						//for (;;) {
+						//	diff_re = plys[i].flyaway_loop_r1_sigma * distrb2(engine);
+						//	if (diff_re + re > 0) {
+						//		re = diff_re + re;
+						//		break;
+						//	}
+						//}
+
+						//float diff_pe = plys[i].flyaway_loop_r1_sigma * distrb2(engine);
+						//pe += diff_pe;
+
+						vars.push_back(cur);
+					}
+
+					/* Creating fiber curve */
+
+					bool visible = false;
+					for (int k = 0; k <= nstep; ++k) {
+						const vec3& cur = vars[k];
+						vec3 pos;
+						pos[0] = cur[0] * std::cos(cur[2]);
+						pos[1] = cur[0] * std::sin(cur[2]);
+						pos[2] = cur[1];
+						// Crop flyaway fibers using the ply's bounding box
+						if ((pos[2] < this->aabb_micro_ct.pMin.z()) || (pos[2] > this->aabb_micro_ct.pMax.z()))
+							break;
+
+						if ((cur[0] < balance_radius) && (!visible)) {
+							visible = true;
+							fiber.vertices.resize(0);
+						}
+						fiber.vertices.push_back(pos + this->plys[i].base_center);
+					}
+					if (fiber.vertices.size() > 3) {
+						plys[i].num_hair_fibers++;
+						this->plys[i].fibers.push_back(fiber);
+						++j;
+					}
 				}
 			}
 			plys[i].num_hair_fibers += loop_hair;

@@ -24,7 +24,10 @@ out vec4 pos;
 out vec4 shadowPos;
 out vec3 yarn_Dir;
 out vec2 uv;
+out vec2 uvAO;
+out vec4 world_pos;
 vec4 uv_[2];
+vec4 uv_AO[2];
 
 vec3 GetWDif(vec3 sDir, vec3 view_dir_)
 {
@@ -37,8 +40,11 @@ void main(void)
 {
 	float one_over_flyaway_texture_height = 1.0f / flyaway_texture_height;
 
-	uv_[0]			= vec4( ply_shift[0] + texture_offset, ply_shift[0] + texture_offset, 1.0f - 12.0f*one_over_flyaway_texture_height, one_over_flyaway_texture_height );
-	uv_[1]			= vec4( ply_shift[1] + texture_offset, ply_shift[1] + texture_offset, uv_[0].zw );
+	uv_[0]			= vec4( ply_shift[0], ply_shift[0], 1.0f - one_over_flyaway_texture_height, one_over_flyaway_texture_height );
+	uv_[1]			= vec4( ply_shift[1], ply_shift[1], uv_[0].zw );
+	
+	uv_AO[0]			= vec4( ply_shift[0], ply_shift[0], 0.5f + width_scale * 0.5, 0.5f - width_scale * 0.5 );
+	uv_AO[1]			= vec4( ply_shift[1], ply_shift[1], uv_AO[0].zw );
 		
 	vec3 view_dir0 = normalize(view_dir -  gl_in[0].gl_Position.xyz);
 	vec3 view_dir1 = normalize(view_dir -  gl_in[1].gl_Position.xyz);
@@ -51,12 +57,12 @@ void main(void)
 	///----------------------------------------------------------------------
 	gl_Position = gl_in[0].gl_Position;
 	gl_Position.xyz += width_0 * 0.5;
-	shadowPos = shadow_matrix * (gl_Position + vec4(view_dir0*tube_width*0.5, 0.0));
-	shadowPos.z -= SHADOW_BIAS;
+	shadowPos = gl_Position + vec4(view_dir0*tube_width*0.5, 0.0);
 	gl_Position = view_matrix * gl_Position;
-	gl_Position.z -= SHADOW_BIAS;
+	world_pos = gl_in[0].gl_Position;
 	yarn_Dir =  yarn_dir[0];
 	uv = uv_[0].xz;
+	uvAO = uv_[0].xz;
 
 	pos = w_pos[0];
 
@@ -67,11 +73,11 @@ void main(void)
 	///----------------------------------------------------------------------
 	gl_Position = gl_in[0].gl_Position;
 	gl_Position.xyz -= width_0 * 0.5;
-	shadowPos = shadow_matrix * (gl_Position + vec4(view_dir0*tube_width*0.5, 0.0));
-	shadowPos.z -= SHADOW_BIAS;
+	shadowPos = gl_Position + vec4(view_dir0*tube_width*0.5, 0.0);
 	gl_Position = view_matrix * gl_Position;
-	gl_Position.z -= SHADOW_BIAS;
+	world_pos = gl_in[0].gl_Position;
 	uv	= uv_[0].yw;
+	uvAO = uv_AO[0].yw;
 	EmitVertex();
 
 	///----------------------------------------------------------------------
@@ -79,12 +85,12 @@ void main(void)
 	///----------------------------------------------------------------------
 	gl_Position = gl_in[1].gl_Position;
 	gl_Position.xyz += width_1 * 0.5;
-	shadowPos = shadow_matrix * (gl_Position + vec4(view_dir1*tube_width*0.5, 0.0));
-	shadowPos.z -= SHADOW_BIAS;
+	shadowPos = gl_Position + vec4(view_dir1*tube_width*0.5, 0.0);
 	gl_Position = view_matrix * gl_Position;
-	gl_Position.z -= SHADOW_BIAS;
+	world_pos = gl_in[1].gl_Position;
 	yarn_Dir =  yarn_dir[1];
 	uv	= uv_[1].xz;
+	uvAO = uv_AO[0].xz;
 	pos = w_pos[1];
 
 	EmitVertex();
@@ -94,11 +100,11 @@ void main(void)
 	///----------------------------------------------------------------------
 	gl_Position = gl_in[1].gl_Position;
 	gl_Position.xyz -= width_1 * 0.5;
-	shadowPos = shadow_matrix * (gl_Position + vec4(view_dir1*tube_width*0.5, 0.0));
-	shadowPos.z -= SHADOW_BIAS;
+	shadowPos = gl_Position + vec4(view_dir1*tube_width*0.5, 0.0);
 	gl_Position = view_matrix * gl_Position;
-	gl_Position.z -= SHADOW_BIAS;
+	world_pos = gl_in[1].gl_Position;
 	uv	= uv_[1].yw;
+	uvAO = uv_AO[1].yw;
 	EmitVertex();
 
 	EndPrimitive();

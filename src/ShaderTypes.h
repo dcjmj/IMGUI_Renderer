@@ -8,6 +8,7 @@ enum {
 	SHADER_PARAM_view_matrix,
 	SHADER_PARAM_camera_matrix,
 	SHADER_PARAM_shadow_matrix,
+	SHADER_PARAM_envshadow_matrixs,
 	SHADER_PARAM_shadow_R_matrix,
 
 	SHADER_PARAM_view_dir,
@@ -30,10 +31,32 @@ enum {
 	SHADER_PARAM_frame_buffer_texture,
 	SHADER_PARAM_depth_buffer_texture,
 	SHADER_PARAM_self_shadow_texture,
+	SHADER_PARAM_random_texture,
 	SHADER_PARAM_shadow_texture,
+	SHADER_PARAM_envshadow_texture_1,
+	SHADER_PARAM_envshadow_texture_2,
+	SHADER_PARAM_envshadow_texture_3,
+	SHADER_PARAM_envshadow_texture_4,
+	SHADER_PARAM_envshadow_texture_5,
+	SHADER_PARAM_envshadow_texture_6,
+	SHADER_PARAM_envshadow_texture_7,
+	SHADER_PARAM_envshadow_texture_8,
+	SHADER_PARAM_envshadow_texture_9,
+	SHADER_PARAM_envshadow_texture_10,
+	SHADER_PARAM_envshadow_texture_11,
+	SHADER_PARAM_envshadow_texture_12,
+	SHADER_PARAM_envshadow_texture_13,
+	SHADER_PARAM_envshadow_texture_14,
+	SHADER_PARAM_envshadow_texture_15,
+	SHADER_PARAM_envshadow_texture_16,
+	SHADER_PARAM_integral_texture,
+	SHADER_PARAM_envlight_dirs,
+	SHADER_PARAM_envlight_intensity,
+	SHADER_PARAM_envlight_lambdas,
 	SHADER_PARAM_flyaway_texture,
 	SHADER_PARAM_core_texture,
 	SHADER_PARAM_core_dir_texture,
+
 	SHADER_PARAM_core_AO_texture,
 	SHADER_PARAM_core_AO0_texture,
 	SHADER_PARAM_core_AO1_texture,
@@ -58,6 +81,8 @@ enum {
 	SHADER_PARAM_TUBE_WIDTH,
 	SHADER_PARAM_Light_Dir,
 
+	SHADER_PARAM_AJSUST,
+	SHADER_PARAM_Flyaway_AO,
 	SHADER_PARAM_fiber_thickness,
 	SHADER_PARAM_fiber_rho_min,
 	SHADER_PARAM_fiber_rho_max,
@@ -81,7 +106,7 @@ enum {
 	SHADER_PARAM_scale,
 
 	SHADER_PARAM_use_lod,
-	SHADER_PARAM_use_ao,
+	SHADER_PARAM_use_envmap,
 	SHADER_PARAM_use_diffuse,
 	SHADER_PARAM_use_specular,
 	SHADER_PARAM_use_regular_fiber,
@@ -157,6 +182,24 @@ enum {
 	TEXTURE_UNIT_SSAA_TEXTURE,
 	TEXTURE_UNIT_SSAA_TEXTURE2,
 	TEXTURE_UNIT_SHADOW_R_TEXTURE,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE1,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE2,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE3,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE4,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE5,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE6,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE7,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE8,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE9,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE10,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE11,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE12,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE13,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE14,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE15,
+	TEXTURE_UNIT_ENVSHADOW_TEXTURE16,
+	TEXTURE_UNIT_INTEGRAL_TEXTURE,
+	TEXTURE_UNIT_RANDOM_TEXTURE,
 };
 
 enum {
@@ -170,56 +213,56 @@ enum {
 
 # define VBO_YARN_COUNT (VBO_YARN_VERTEX+1)
 
-typedef struct FiberGenerationData {
-	ks::vec3				g_aabb_micro_ct_pMin = ks::vec3(-0.0498028, -0.0498028, -0.486193);
-	float 					g_ellipse_long = 0.0282957;
-	ks::vec3 				g_aabb_micro_ct_pMax = ks::vec3(0.0498028, 0.0498028, 0.486193);
-	float 					g_ellipse_short = 0.0208841;
+typedef struct FiberGenerationData{
+    ks::vec3				g_aabb_micro_ct_pMin = ks::vec3(-0.0498028, -0.0498028, -0.486193);
+    float 					g_ellipse_long = 0.0282957;
+    ks::vec3 				g_aabb_micro_ct_pMax = ks::vec3(0.0498028, 0.0498028, 0.486193);
+    float 					g_ellipse_short = 0.0208841;
 	ks::vec3				g_color = ks::vec3(1.0f, 0.8f, 0.1f);
-	float 					g_yarn_radius = 0.02866;
+    float 					g_yarn_radius = 0.055;
 	float 					g_fiber_thickness = 0.008f;
-	float 					g_yarn_alpha = 0.38;
-	float 					g_fiber_num = 75;
-	float 					g_ply_num = 2;
-	float					g_direct_light_intensity = 0.6f;
+    float 					g_yarn_alpha = 0.38;
+    float 					g_fiber_num = 75;
+    float 					g_ply_num = 2;
+	float					g_direct_light_intensity = 0.6f;	
 	float					g_amb_light_intensity = 0.5f;
 	float					g_center_offset;
 	float 					g_scale = 1.0f;
-	float					g_hair_length_scale = 1.f;
+	float					g_hair_length_scale = 1.f;	
 	float					g_hair_rotation_scale = 1.0f;
 	float					g_hair_scale = 1.7f;
 	float					g_lamda_R = 0.2f;
 	float					g_k_R = 0.5f;
 
 
-	//-------------------------------------------------------------------------------
-	// fly away parameters
-	float 					g_flyaway_loop_density = 22.17;
-	float 					g_flyaway_hair_density = 33.7667;
-	float 					g_flyaway_hair_ze_mu = -0.00252956;
-	float 					g_flyaway_hair_ze_sigma = 0.0572919;
-	float 					g_flyaway_hair_r0_mu = 0.0197073;
-	float 					g_flyaway_hair_r0_sigma = 0.00556197;
-	float 					g_flyaway_hair_re_mu = 0.0162684;
-	float 					g_flyaway_hair_re_sigma = 0.00850055;
-	float 					g_flyaway_hair_pe_mu = 0.376521;
-	float 					g_flyaway_hair_pe_sigma = 0.325502;
-	float 					g_flyaway_loop_r1_mu = 0.0237306;
-	float 					g_flyaway_loop_r1_sigma = 0.00537727;
-	float 					g_z_step_size = 0.01;
-	float 					g_z_step_num = 98;
-	float                   g_epsilon = 0.0521;
-	float                   g_r_max = 1;
-	float                   g_beta = 0.292756;
-	float                   g_alpha = 0.38;
+    //-------------------------------------------------------------------------------
+    // fly away parameters
+    float 					g_flyaway_loop_density = 22.17;
+    float 					g_flyaway_hair_density = 33.7667;
+    float 					g_flyaway_hair_ze_mu = -0.00252956;
+    float 					g_flyaway_hair_ze_sigma = 0.0572919;
+    float 					g_flyaway_hair_r0_mu = 0.0197073;
+    float 					g_flyaway_hair_r0_sigma = 0.00556197;
+    float 					g_flyaway_hair_re_mu = 0.0162684;
+    float 					g_flyaway_hair_re_sigma = 0.00850055;
+    float 					g_flyaway_hair_pe_mu = 0.376521;
+    float 					g_flyaway_hair_pe_sigma = 0.325502;
+    float 					g_flyaway_loop_r1_mu = 0.0237306;
+    float 					g_flyaway_loop_r1_sigma = 0.00537727;
+    float 					g_z_step_size = 0.01;
+    float 					g_z_step_num = 98;
+    float                   g_epsilon = 0.0521;
+    float                   g_r_max = 1;
+    float                   g_beta = 0.292756;
+    float                   g_alpha = 0.38;
 	float                   g_s_i = 1.0;
-	float                   g_rho_min = 0.1;
-	float                   g_rho_max = 0.85;
+    float                   g_rho_min = 0.1;
+    float                   g_rho_max = 0.85;
 
 	bool 					g_yarn_clock_wise = false;
-	bool 					g_use_flyaways = true;
-	bool 					g_use_migration = true;
-	bool                    g_fiber_clock_wise = true;
+    bool 					g_use_flyaways = true;
+    bool 					g_use_migration = true;
+    bool                    g_fiber_clock_wise = true;
 
 	//Render strategy
 	bool 					g_use_core_fibers = true;

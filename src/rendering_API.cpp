@@ -1,4 +1,4 @@
-//Render Buffer
+﻿//Render Buffer
 #include "rendering_API.h"
 #include "lodepng.h"
 #include "cyPoint.h"
@@ -238,7 +238,7 @@ void GLWidget::InitOfflineYarns()
 	// use previous loaded config to offline yarn generator
 	UpdateConfig2OfflineYarn(offlineYarns);
 	offlineYarns->fiber_radius = 0.158f;
-	offlineYarns->z_step_num = 38;
+	offlineYarns->z_step_num = abs(offlineYarns->yarn_alpha) / offlineYarns->z_step_size + 1.f;
 	offlineYarns->aabb_micro_ct.pMin.z() = -0.5f * offlineYarns->z_step_num * offlineYarns->z_step_size;
 	offlineYarns->aabb_micro_ct.pMax.z() = (0.5f * offlineYarns->z_step_num - 1) * offlineYarns->z_step_size;
 	offlineYarns->use_flyaways = false;
@@ -262,6 +262,7 @@ void GLWidget::InitOfflineYarns()
 			std::vector<ks::vec3> fiberVertices;
 			int fiber_vertex_num = (int)fiber.vertices.size();
 			for (int v = 0; v < fiber_vertex_num; v++) {
+				//fiberVertices.push_back(ks::vec3(fiber.vertices[v].z() / 2, fiber.vertices[v].y() / 2, fiber.vertices[v].x() / 2));
 				fiberVertices.push_back(ks::vec3(fiber.vertices[v].z(), fiber.vertices[v].y(), fiber.vertices[v].x()));
 			}
 
@@ -277,6 +278,82 @@ void GLWidget::InitOfflineYarns()
 		glBindBuffer(GL_ARRAY_BUFFER, offlineYarnBuffer[i]);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(ks::vec3) * (offlineYarnVertices[i].size()), &offlineYarnVertices[i][0], GL_STATIC_DRAW);
 	}
+
+	offlineCoreRenderBuffer->Bind();
+
+	GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
+
+	int w = vp[2];
+	int h = vp[3];
+
+	glViewport(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	glClearBufferfv(GL_COLOR, 0, clearColor);
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+
+	glEnable(GL_DEPTH_TEST);
+
+	shaderOfflineCoreT.BindProgram();
+	shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_view_matrix, mI4.data());
+	shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_model_matrix, mIdentity.data());
+	float fiber_thick = 0.00848868862;
+	shaderOfflineCoreT.SetParam(SHADER_PARAM_fiber_thickness, fiber_thick);
+	g_center_offset = 0.f;
+	shaderOfflineCoreT.SetParam(SHADER_PARAM_center_offset, g_center_offset);
+
+	{
+		for (int i = 0; i < (int)offlineYarnVertices.size(); i++)
+		{
+			glBindBuffer(GL_ARRAY_BUFFER, offlineYarnBuffer[i]);
+			glVertexAttribPointer(ATTRIB_VERTEX, 3, GL_FLOAT, GL_FALSE, 0, 0);
+			glEnableVertexAttribArray(ATTRIB_VERTEX);
+			glDrawArrays(GL_LINE_STRIP, 0, (int)offlineYarnVertices[i].size());
+			glDisableVertexAttribArray(ATTRIB_VERTEX);
+		}
+	}
+	offlineCoreRenderBuffer->Unbind();
+
+	std::string filename = "D:/test/imgui.png";
+	saveTexture2DAsImage(offlineCoreRenderBuffer->BufferTexID(), filename.data());
+
+	const size_t texture_size = DEFAULT_WIDTH * DEFAULT_HEIGHT * 4;
+
+	GLfloat* pixels = new GLfloat[texture_size];
+
+	glBindTexture(GL_TEXTURE_2D, offlineCoreRenderBuffer->BufferTexID());
+
+	// load texture to pixels
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, pixels);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// find min max
+	int xmin = DEFAULT_WIDTH, ymin = DEFAULT_HEIGHT;
+	int xmax = 0, ymax = 0;
+	for (int y = 0; y < DEFAULT_HEIGHT; y++)
+		for (int x = 0; x < DEFAULT_WIDTH; x++)
+		{
+			int startAddressOfPixel = ((y * DEFAULT_WIDTH) + x) * 4;
+			if ((pixels[startAddressOfPixel + 3] > 0.01))
+			{
+				if (xmin > x) xmin = x;
+				if (ymin > y) ymin = y;
+				if (xmax < x) xmax = x;
+				if (ymax < y) ymax = y;
+			}
+		}
+
+	g_flyaway_texture_left = xmin;
+	g_flyaway_texture_right = xmax;
+	g_regular_width = ymax - ymin;
+
+	std::cout << "flyaway_texture is from " << xmin << " to " << xmax << ", the regular fiber width is " << g_regular_width << std::endl;
+	delete[] pixels;
+
+	glViewport(0, 0, w, h);
 }
 
 void GLWidget::Init1DCylinderNormTexture()
@@ -1095,117 +1172,224 @@ void GLWidget::ReadFrameBuffer()
 
 void GLWidget::UpdateOfflineYarn()
 {
-	offlineFlyaway = new Fiber::Yarn();
-	UpdateConfig2OfflineYarn(offlineFlyaway);
-	offlineFlyaway->clock_wise = offlineFlyaway->clock_wise;
-	offlineFlyaway->fiber_radius = 0.158f;
-	///offlineFlyaway->z_step_num = 38;
-	offlineFlyaway->z_step_num = 39;
-	offlineFlyaway->aabb_micro_ct.pMin.z() = -0.5f * offlineFlyaway->z_step_num * offlineFlyaway->z_step_size;
-	offlineFlyaway->yarn_radius = 0.02866;
-	offlineFlyaway->aabb_micro_ct.pMax.z() = (0.5f * offlineFlyaway->z_step_num - 1) * offlineFlyaway->z_step_size;
-	offlineFlyaway->simulate_fly_away();
-
-
-	//---------------------------------------------      update depth based on regular fiber ---------------------------------------------   
-
-	//glBindFramebuffer(GL_FRAMEBUFFER, offlineCoreRenderBuffer->buffer);
-	//offlineCoreRenderBuffer->Bind();
-	glBindFramebuffer(GL_FRAMEBUFFER, offlineCoreRenderBuffer->buffer);
-
+	//we need to create 3 different type of flyaway fiber, and using Wang textile to escape from constant pattern
+	GLfloat* pixels[3];
 	GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
-
 	int w = vp[2];
 	int h = vp[3];
+	for (int flyaway_type = 0; flyaway_type < 3; flyaway_type++) {
+		offlineFlyaway = new Fiber::Yarn();
+		UpdateConfig2OfflineYarn(offlineFlyaway);
+		offlineFlyaway->clock_wise = offlineFlyaway->clock_wise;
+		offlineFlyaway->fiber_radius = 0.158f;
+		///offlineFlyaway->z_step_num = 39;
+		offlineFlyaway->z_step_num = abs(offlineFlyaway->yarn_alpha) / offlineFlyaway->z_step_size + 1.f;
+		//offlineFlyaway->z_step_num = 117;
+		offlineFlyaway->aabb_micro_ct.pMin.z() = -0.5f * offlineFlyaway->z_step_num * offlineFlyaway->z_step_size;
+		offlineFlyaway->yarn_radius = 0.02866;
+		offlineFlyaway->aabb_micro_ct.pMax.z() = (0.5f * offlineFlyaway->z_step_num - 1) * offlineFlyaway->z_step_size;
+		offlineFlyaway->simulate_fly_away();
 
-	glViewport(0, 0, DEFAULT_WIDTH * 4, DEFAULT_HEIGHT * 4);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-	GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	glClearBufferfv(GL_COLOR, 0, clearColor);
 
-	glEnable(GL_DEPTH_TEST);
-	//glDepthFunc(GL_LESS);
+		//---------------------------------------------      update depth based on regular fiber ---------------------------------------------   
 
-	shaderOfflineCore.BindProgram();
-	shaderOfflineCore.SetParamMatrix4(SHADER_PARAM_view_matrix, mI4.data());
-	shaderOfflineCore.SetParamMatrix4(SHADER_PARAM_model_matrix, mIdentity.data());
-	float fiber_thick = 0.00848868862;
-	shaderOfflineCore.SetParam(SHADER_PARAM_fiber_thickness, fiber_thick);
-	g_center_offset = 0.f;
-	shaderOfflineCore.SetParam(SHADER_PARAM_center_offset, g_center_offset);
+		offlineCoreRenderBuffer->Bind();
 
-	{
-		for (int i = 0; i < (int)offlineYarnVertices.size(); i++)
+
+		glViewport(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		glClearBufferfv(GL_COLOR, 0, clearColor);
+
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_FRONT);
+
+		glEnable(GL_DEPTH_TEST);
+
+		shaderOfflineCore.BindProgram();
+		shaderOfflineCore.SetParamMatrix4(SHADER_PARAM_view_matrix, mI4.data());
+		shaderOfflineCore.SetParamMatrix4(SHADER_PARAM_model_matrix, mIdentity.data());
+		float fiber_thick = 0.00848868862;
+		shaderOfflineCore.SetParam(SHADER_PARAM_fiber_thickness, fiber_thick);
+		g_center_offset = 0.f;
+		shaderOfflineCore.SetParam(SHADER_PARAM_center_offset, g_center_offset);
+
 		{
-			glBindBuffer(GL_ARRAY_BUFFER, offlineYarnBuffer[i]);
+			for (int i = 0; i < (int)offlineYarnVertices.size(); i++)
+			{
+				glBindBuffer(GL_ARRAY_BUFFER, offlineYarnBuffer[i]);
+				glVertexAttribPointer(ATTRIB_VERTEX, 3, GL_FLOAT, GL_FALSE, 0, 0);
+				glEnableVertexAttribArray(ATTRIB_VERTEX);
+				glDrawArrays(GL_LINE_STRIP, 0, (int)offlineYarnVertices[i].size());
+				glDisableVertexAttribArray(ATTRIB_VERTEX);
+			}
+		}
+		//---------------------------------------------      update based on flyaway fiber ---------------------------------------------   
+
+		// clear offlinePlyVertices
+		for (int i = 0; i > (int)offlineCoreVertices.size(); i++)
+			offlineCoreVertices[i].clear();
+		offlineCoreVertices.clear();
+		for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
+			glDeleteBuffers(1, &offlineCoreBuffer[i]);
+		offlineCoreBuffer.clear();
+
+		for (int ply = 0; ply < offlineFlyaway->plys.size(); ply++) {
+			int num_hair_fibers = offlineFlyaway->plys[ply].num_hair_fibers;
+			int fiber_num = (int)offlineFlyaway->plys[ply].fibers.size();
+			for (int f = 0; f < fiber_num; f++) {
+				Fiber::Fiber& fiber = offlineFlyaway->plys[ply].fibers[f];
+				std::vector<ks::vec3> fiberVertices;
+				int fiber_vertex_num = (int)fiber.vertices.size();
+				for (int v = 0; v < fiber_vertex_num; v++) {
+					//fiberVertices.push_back(ks::vec3(fiber.vertices[v].z() / 2, fiber.vertices[v].y() / 2, fiber.vertices[v].x() / 2));
+					fiberVertices.push_back(ks::vec3(fiber.vertices[v].z(), fiber.vertices[v].y(), fiber.vertices[v].x()));
+				}
+
+				offlineCoreVertices.push_back(fiberVertices);
+			}
+		}
+
+		offlineCoreBuffer.resize((int)offlineCoreVertices.size());
+		// put offline ply data to buffer, used for core fiber texture generation
+		for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
+		{
+			glGenBuffers(1, &offlineCoreBuffer[i]);
+			glBindBuffer(GL_ARRAY_BUFFER, offlineCoreBuffer[i]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(ks::vec3) * (offlineCoreVertices[i].size()), &offlineCoreVertices[i][0], GL_DYNAMIC_DRAW);
+		}
+
+
+		shaderOfflineCoreT.BindProgram();
+		shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_view_matrix, mI4.data());
+		shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_model_matrix, mIdentity.data());
+		shaderOfflineCoreT.SetParam(SHADER_PARAM_fiber_thickness, fiber_thick);
+		g_center_offset = 0.f;
+		shaderOfflineCoreT.SetParam(SHADER_PARAM_center_offset, g_center_offset);
+
+		for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
+
+		{
+			glBindBuffer(GL_ARRAY_BUFFER, offlineCoreBuffer[i]);
 			glVertexAttribPointer(ATTRIB_VERTEX, 3, GL_FLOAT, GL_FALSE, 0, 0);
 			glEnableVertexAttribArray(ATTRIB_VERTEX);
-			glDrawArrays(GL_LINE_STRIP, 0, (int)offlineYarnVertices[i].size());
+			glDrawArrays(GL_LINE_STRIP, 0, (int)offlineCoreVertices[i].size());
 			glDisableVertexAttribArray(ATTRIB_VERTEX);
 		}
+
+		//Load pattern into texture
+		{
+			const size_t texture_size = DEFAULT_WIDTH * DEFAULT_HEIGHT * 4;
+
+			pixels[flyaway_type] = new GLfloat[texture_size];
+
+			glBindTexture(GL_TEXTURE_2D, offlineCoreRenderBuffer->BufferTexID());
+
+			// load texture to pixels
+			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, pixels[flyaway_type]);
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			// find min max
+			int xmin = DEFAULT_WIDTH, ymin = DEFAULT_HEIGHT;
+			int xmax = 0, ymax = 0;
+			for (int y = 0; y < DEFAULT_HEIGHT; y++)
+				for (int x = 0; x < DEFAULT_WIDTH; x++)
+				{
+					int startAddressOfPixel = ((y * DEFAULT_WIDTH) + x) * 4;
+					if ((pixels[flyaway_type][startAddressOfPixel + 3] > 0.01))
+					{
+						if (xmin > x) xmin = x;
+						if (ymin > y) ymin = y;
+						if (xmax < x) xmax = x;
+						if (ymax < y) ymax = y;
+					}
+				}
+
+			//int diff = ymax - DEFAULT_HEIGHT * 2;
+			//diff = max(DEFAULT_HEIGHT*2 - ymin, diff);
+			//xmin = DEFAULT_HEIGHT*2 - diff;
+			//xmax = DEFAULT_HEIGHT * 2 + diff;
+
+			std::cout << "Flyaway texture " << flyaway_type << " bounding box : " << xmin << " " << ymin << " " << xmax << " " << ymax << std::endl;
+
+			// clamp the border
+			xmin = g_flyaway_texture_left;
+			xmax = g_flyaway_texture_right;
+
+			g_flyaway_texture_top = std::max(g_flyaway_texture_top, ymax);
+			g_flyaway_texture_bot = std::min(g_flyaway_texture_bot, ymin);
+		}
+
+		offlineCoreRenderBuffer->Unbind();
 	}
+	glViewport(0, 0, w, h);
+	//g_flyaway_texture_top += 10;
+	g_flyaway_texture_width = g_flyaway_texture_right - g_flyaway_texture_left;
+	if (g_flyaway_texture_top + g_flyaway_texture_bot > DEFAULT_HEIGHT) g_flyaway_texture_bot = DEFAULT_HEIGHT - g_flyaway_texture_top;
+	else g_flyaway_texture_top = DEFAULT_HEIGHT - g_flyaway_texture_bot;
+	g_flyaway_texture_height = g_flyaway_texture_top - g_flyaway_texture_bot;
+	GLfloat* corePixels = new GLfloat[g_flyaway_texture_width * 3 * g_flyaway_texture_height * 4];
+	for (int i = 0; i < 3; i++)
+	{
+		// create core texture
+		int xmin = g_flyaway_texture_left;
+		int xmax = g_flyaway_texture_right;
+		int ymin = g_flyaway_texture_bot;
+		int ymax = g_flyaway_texture_top;
 
-	//---------------------------------------------      update based on flyaway fiber ---------------------------------------------   
+		float r_min = 255.0;
+		float r_max = -255.0;
+		float g_min = 255.0;
+		float g_max = -255.0;
+		float b_min = 255.0;
+		float b_max = -255.0;
+		for (int y = ymin; y < ymax; y++)
+		{
+			for (int x = xmin; x < xmax; x++)
+			{
+				int startAddressOfPixel = ((y * DEFAULT_WIDTH) + x) * 4;
+				int startAddressOfCorePixel = (((y - ymin) * g_flyaway_texture_width * 3) + (x - xmin) + g_flyaway_texture_width * i) * 4;
+				corePixels[startAddressOfCorePixel + 0] = pixels[i][startAddressOfPixel + 0];
+				corePixels[startAddressOfCorePixel + 1] = pixels[i][startAddressOfPixel + 1];
+				corePixels[startAddressOfCorePixel + 2] = pixels[i][startAddressOfPixel + 2];
+				if (pixels[i][startAddressOfPixel + 3] < 0.01)
+				{
+					corePixels[startAddressOfCorePixel + 3] = 0.0;		// black part
+				}
+				else
+				{
+					r_min = (r_min > pixels[i][startAddressOfPixel + 0]) ? pixels[i][startAddressOfPixel + 0] : r_min;
+					g_min = (g_min > pixels[i][startAddressOfPixel + 1]) ? pixels[i][startAddressOfPixel + 1] : g_min;
+					b_min = (b_min > pixels[i][startAddressOfPixel + 2]) ? pixels[i][startAddressOfPixel + 2] : b_min;
 
-	// clear offlinePlyVertices
-	for (int i = 0; i > (int)offlineCoreVertices.size(); i++)
-		offlineCoreVertices[i].clear();
-	offlineCoreVertices.clear();
-	for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
-		glDeleteBuffers(1, &offlineCoreBuffer[i]);
-	offlineCoreBuffer.clear();
+					r_max = (r_min < pixels[i][startAddressOfPixel + 0]) ? pixels[i][startAddressOfPixel + 0] : r_max;
+					g_max = (g_min < pixels[i][startAddressOfPixel + 1]) ? pixels[i][startAddressOfPixel + 1] : g_max;
+					b_max = (b_min < pixels[i][startAddressOfPixel + 2]) ? pixels[i][startAddressOfPixel + 2] : b_max;
 
-	for (int ply = 0; ply < offlineFlyaway->plys.size(); ply++) {
-		int num_hair_fibers = offlineFlyaway->plys[ply].num_hair_fibers;
-		int fiber_num = (int)offlineFlyaway->plys[ply].fibers.size();
-		for (int f = fiber_num - num_hair_fibers; f < fiber_num; f++) {
-			Fiber::Fiber& fiber = offlineFlyaway->plys[ply].fibers[f];
-			std::vector<ks::vec3> fiberVertices;
-			int fiber_vertex_num = (int)fiber.vertices.size();
-			for (int v = 0; v < fiber_vertex_num; v++) {
-				fiberVertices.push_back(ks::vec3(fiber.vertices[v].z(), fiber.vertices[v].y(), fiber.vertices[v].x()));
+					corePixels[startAddressOfCorePixel + 3] = pixels[i][startAddressOfPixel + 3];	// range [0.5, 1]
+				}
 			}
-
-			offlineCoreVertices.push_back(fiberVertices);
 		}
 	}
+	g_flyaway_texture_width = g_flyaway_texture_width * 3;
+	glBindTexture(GL_TEXTURE_2D, flyawayTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_flyaway_texture_width, g_flyaway_texture_height, 0, GL_RGBA, GL_FLOAT, corePixels);
+	glGenerateMipmap(GL_TEXTURE_2D);
 
-	offlineCoreBuffer.resize((int)offlineCoreVertices.size());
-	// put offline ply data to buffer, used for core fiber texture generation
-	for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
-	{
-		glGenBuffers(1, &offlineCoreBuffer[i]);
-		glBindBuffer(GL_ARRAY_BUFFER, offlineCoreBuffer[i]);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(ks::vec3) * (offlineCoreVertices[i].size()), &offlineCoreVertices[i][0], GL_DYNAMIC_DRAW);
-	}
+	GLfloat borderColor[] = { 0.0f, 0.0f, 0.0f, 0.0f }; // 例：红色边界
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-
-	shaderOfflineCoreT.BindProgram();
-	shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_view_matrix, mI4.data());
-	shaderOfflineCoreT.SetParamMatrix4(SHADER_PARAM_model_matrix, mIdentity.data());
-	shaderOfflineCoreT.SetParam(SHADER_PARAM_fiber_thickness, fiber_thick);
-	g_center_offset = 0.f;
-	shaderOfflineCoreT.SetParam(SHADER_PARAM_center_offset, g_center_offset);
-
-	for (int i = 0; i < (int)offlineCoreVertices.size(); i++)
-
-	{
-		glBindBuffer(GL_ARRAY_BUFFER, offlineCoreBuffer[i]);
-		glVertexAttribPointer(ATTRIB_VERTEX, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(ATTRIB_VERTEX);
-		glDrawArrays(GL_LINE_STRIP, 0, (int)offlineCoreVertices[i].size());
-		glDisableVertexAttribArray(ATTRIB_VERTEX);
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	std::string filename = "D:/test/flyaway.png";
-	saveTexture2DAsImage(offlineCoreRenderBuffer->BufferTexID(), filename.data());
-
-	ReadFrameBuffer();
-
-	//offlineCoreRenderBuffer->Unbind();
-
-	glViewport(0, 0, w, h);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	delete[] corePixels;
+	delete[] pixels[0];
+	delete[] pixels[1];
+	delete[] pixels[2];
 }
 
 bool LoadObj(const std::string& filePath, ObjData& objData) {
@@ -1274,8 +1458,7 @@ void GLWidget::CreateIndexBuffer(const ObjData& objData) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void GLWidget::InitObject() {
-	std::string filepath = "./foot_tr.obj";
+void GLWidget::InitObject(std::string filepath) {
 	ObjData objData;
 	LoadObj(filepath, objData);
 
@@ -1284,14 +1467,39 @@ void GLWidget::InitObject() {
 		glGenBuffers(1, &object_vao);
 		glBindBuffer(GL_ARRAY_BUFFER, object_vao);
 		std::vector<GLfloat> array_vertex(0);
-		for (int i = 0; i < objData.vertices.size(); i++) {
+		for (int i = 0; i < object_tri_num; i++) {
+			int v[3];
+			int n[3];
+			v[0] = objData.faces[i].vertexIndices[0];
+			v[1] = objData.faces[i].vertexIndices[1];
+			v[2] = objData.faces[i].vertexIndices[2];
+			n[0] = objData.faces[i].normalIndices[0];
+			n[1] = objData.faces[i].normalIndices[1];
+			n[2] = objData.faces[i].normalIndices[2];
+			for (int j = 0; j < 3; j++) {
+				//rib
+				array_vertex.push_back(GLfloat(objData.vertices[v[j]].x()) * 30);
+				array_vertex.push_back(GLfloat(objData.vertices[v[j]].y()) * 30);
+				array_vertex.push_back(GLfloat(objData.vertices[v[j]].z()) * 30);
+				//flame
+				/*array_vertex.push_back(GLfloat(objData.vertices[v[j]].x()) * 60);
+				array_vertex.push_back(GLfloat(objData.vertices[v[j]].y()) * 60);
+				array_vertex.push_back(GLfloat(objData.vertices[v[j]].z()) * 60);*/
+				
+				array_vertex.push_back(GLfloat(objData.normals[n[j]].x()));
+				array_vertex.push_back(GLfloat(objData.normals[n[j]].y()));
+				array_vertex.push_back(GLfloat(objData.normals[n[j]].z()));
+			}
+		}
+
+		/*for (int i = 0; i < objData.vertices.size(); i++) {
 			array_vertex.push_back(GLfloat(objData.vertices[i].x()) * 30);
 			array_vertex.push_back(GLfloat(objData.vertices[i].y()) * 30);
 			array_vertex.push_back(GLfloat(objData.vertices[i].z()) * 30);
 			array_vertex.push_back(GLfloat(objData.normals[i].x()));
 			array_vertex.push_back(GLfloat(objData.normals[i].y()));
 			array_vertex.push_back(GLfloat(objData.normals[i].z()));
-		}
+		}*/
 		glBufferData(GL_ARRAY_BUFFER, array_vertex.size() * sizeof(GLfloat), array_vertex.data(), GL_STATIC_DRAW);
 		//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3*sizeof(GLfloat)));
 		//glEnableVertexAttribArray(0);
@@ -1315,10 +1523,10 @@ void GLWidget::InitObject() {
 	CreateIndexBuffer(objData);
 }
 
+extern std::vector<ks::vec3> ReadVertFromTxt(const std::string& filePath);
 bool GLWidget::InitShaders() {
 	if (!shaderCheckerBoard.BuildProgramFiles("./glsl/checkerboard.vs.glsl", "./glsl/checkerboard.fs.glsl")
 		|| !shaderYarnTess.BuildProgramFiles("./glsl/yarn_tess.vert", "./glsl/yarn_tess.frag", "./glsl/yarn_tess.geom", "./glsl/yarn_tess.tcs", "./glsl/yarn_tess.tes")
-		|| !shaderOfflineYarn.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/yarn_tess.frag", "./glsl/offlineYarn.geom")
 		|| !shaderOfflineCore.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCore.frag", "./glsl/offlineCoreT.geom")
 		|| !shaderOfflineCoreT.BuildProgramFiles("./glsl/offlineYarn.vert", "./glsl/offlineCoreT.frag", "./glsl/offlineCoreT.geom")
 		|| !shaderFrameBuffer.BuildProgramFiles("./glsl/framebuffer.vert", "./glsl/framebuffer.frag")
@@ -1346,21 +1554,62 @@ bool GLWidget::InitShaders() {
 	shaderFlyaway.RegisterParam(SHADER_PARAM_Beta_TT, "betaTT");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_Beta_N, "betaN");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_D_B, "d_b");
-	shaderFlyaway.RegisterParam(SHADER_PARAM_D_F, "d_f");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_Beta_Diffuse, "beta_diffuse");
-	shaderFlyaway.RegisterParam(SHADER_PARAM_D_F_Inner, "d_f_inner");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_D_Cross_Inter, "d_cross_inter");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_TUBE_WIDTH, "tube_width");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_Delta_2, "width_scale");
-	shaderFlyaway.RegisterParam(SHADER_PARAM_Delta_0, "mDelta_0");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_flyaway_texture_height, "flyaway_texture_height");
 	shaderFlyaway.RegisterParam(SHADER_PARAM_TEXTURE_OFFSET, "texture_offset");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_random_texture, "random_tex");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_1, "env_shadow_tex_1");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_2, "env_shadow_tex_2");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_3, "env_shadow_tex_3");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_4, "env_shadow_tex_4");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_5, "env_shadow_tex_5");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_6, "env_shadow_tex_6");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_7, "env_shadow_tex_7");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_8, "env_shadow_tex_8");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_9, "env_shadow_tex_9");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_10, "env_shadow_tex_10");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_11, "env_shadow_tex_11");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_12, "env_shadow_tex_12");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_13, "env_shadow_tex_13");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_14, "env_shadow_tex_14");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_15, "env_shadow_tex_15");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_texture_16, "env_shadow_tex_16");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envshadow_matrixs, "envshadow_matrixs");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envlight_dirs, "envlight_dirs");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envlight_intensity, "env_intensity");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_envlight_lambdas, "env_lambdas");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_integral_texture, "integral_tex");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_use_envmap, "use_env");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_AJSUST, "adjust_color");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_inv_ply_alpha, "inv_alpha_ply");
+	shaderFlyaway.RegisterParam(SHADER_PARAM_Flyaway_AO, "residual_color");
+
 	shaderFlyaway.BindProgram();
 	shaderFlyaway.SetParam(SHADER_PARAM_shadow_texture, TEXTURE_UNIT_SHADOW_TEXTURE);
 	shaderFlyaway.SetParam(SHADER_PARAM_flyaway_texture, TEXTURE_UNIT_FLYAWAY_TEXTURE);
+	shaderFlyaway.SetParam(SHADER_PARAM_random_texture, TEXTURE_UNIT_RANDOM_TEXTURE);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_1, TEXTURE_UNIT_ENVSHADOW_TEXTURE1);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_2, TEXTURE_UNIT_ENVSHADOW_TEXTURE2);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_3, TEXTURE_UNIT_ENVSHADOW_TEXTURE3);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_4, TEXTURE_UNIT_ENVSHADOW_TEXTURE4);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_5, TEXTURE_UNIT_ENVSHADOW_TEXTURE5);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_6, TEXTURE_UNIT_ENVSHADOW_TEXTURE6);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_7, TEXTURE_UNIT_ENVSHADOW_TEXTURE7);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_8, TEXTURE_UNIT_ENVSHADOW_TEXTURE8);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_9, TEXTURE_UNIT_ENVSHADOW_TEXTURE9);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_10, TEXTURE_UNIT_ENVSHADOW_TEXTURE10);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_11, TEXTURE_UNIT_ENVSHADOW_TEXTURE11);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_12, TEXTURE_UNIT_ENVSHADOW_TEXTURE12);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_13, TEXTURE_UNIT_ENVSHADOW_TEXTURE13);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_14, TEXTURE_UNIT_ENVSHADOW_TEXTURE14);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_15, TEXTURE_UNIT_ENVSHADOW_TEXTURE15);
+	shaderFlyaway.SetParam(SHADER_PARAM_envshadow_texture_16, TEXTURE_UNIT_ENVSHADOW_TEXTURE16);
+	shaderFlyaway.SetParam(SHADER_PARAM_integral_texture, TEXTURE_UNIT_INTEGRAL_TEXTURE);
 
 	shaderDownSample.RegisterParam(SHADER_PARAM_SSAA_texture, "uTexture");
-	shaderDownSample.RegisterParam(SHADER_PARAM_SSAA_texture2, "uTexture2");
 	shaderDownSample.BindProgram();
 	shaderDownSample.SetParam(SHADER_PARAM_SSAA_texture, TEXTURE_UNIT_SSAA_TEXTURE);
 	shaderDownSample.SetParam(SHADER_PARAM_SSAA_texture2, TEXTURE_UNIT_SSAA_TEXTURE2);
@@ -1373,10 +1622,14 @@ bool GLWidget::InitShaders() {
 	// yarn tessellation shader
 	shaderYarnTess.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_shadow_matrix, "shadow_matrix");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_matrixs, "envshadow_matrixs");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_camera_matrix, "camera_matrix");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_shadow_R_matrix, "shadow_R_matrix");
 
 	shaderYarnTess.RegisterParam(SHADER_PARAM_light_dir, "light_dir");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envlight_dirs, "envlight_dirs");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envlight_intensity, "env_intensity");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envlight_lambdas, "env_lambdas");
 	//shaderYarnTess.RegisterParam(SHADER_PARAM_light_pos, "light_pos");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_light_pos_world, "light_pos_world");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_view_dir, "view_dir");
@@ -1389,7 +1642,7 @@ bool GLWidget::InitShaders() {
 	shaderYarnTess.RegisterParam(SHADER_PARAM_cross_section_texture, "cross_section_tex");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_use_lod, "use_lod");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_use_lod_vis, "use_lod_vis");
-	shaderYarnTess.RegisterParam(SHADER_PARAM_use_ao, "use_ao");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_use_envmap, "use_env");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_use_diffuse, "use_diffuse");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_use_specular, "use_specular");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_use_regular_fiber, "use_regular_fiber");
@@ -1451,6 +1704,25 @@ bool GLWidget::InitShaders() {
 	shaderYarnTess.RegisterParam(SHADER_PARAM_core_AO7_texture_Long, "Core_AO7_tex_Long");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_core_AO8_texture_Long, "Core_AO8_tex_Long");
 
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_1, "env_shadow_tex_1");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_2, "env_shadow_tex_2");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_3, "env_shadow_tex_3");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_4, "env_shadow_tex_4");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_5, "env_shadow_tex_5");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_6, "env_shadow_tex_6");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_7, "env_shadow_tex_7");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_8, "env_shadow_tex_8");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_9, "env_shadow_tex_9");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_10, "env_shadow_tex_10");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_11, "env_shadow_tex_11");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_12, "env_shadow_tex_12");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_13, "env_shadow_tex_13");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_14, "env_shadow_tex_14");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_15, "env_shadow_tex_15");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_envshadow_texture_16, "env_shadow_tex_16");
+	shaderYarnTess.RegisterParam(SHADER_PARAM_integral_texture, "integral_tex");
+
+	shaderYarnTess.RegisterParam(SHADER_PARAM_AJSUST, "adjust_color");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_shadow_R_texture, "shadow_R_tex");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_Delta_0, "mDelta_0");
 	shaderYarnTess.RegisterParam(SHADER_PARAM_Delta_1, "mDelta_1");
@@ -1499,6 +1771,23 @@ bool GLWidget::InitShaders() {
 	shaderYarnTess.SetParam(SHADER_PARAM_core_AO6_texture, TEXTURE_UNIT_CORE_AO6_TEXTURE);
 	shaderYarnTess.SetParam(SHADER_PARAM_core_AO7_texture, TEXTURE_UNIT_CORE_AO7_TEXTURE);
 
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_1, TEXTURE_UNIT_ENVSHADOW_TEXTURE1);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_2, TEXTURE_UNIT_ENVSHADOW_TEXTURE2);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_3, TEXTURE_UNIT_ENVSHADOW_TEXTURE3);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_4, TEXTURE_UNIT_ENVSHADOW_TEXTURE4);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_5, TEXTURE_UNIT_ENVSHADOW_TEXTURE5);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_6, TEXTURE_UNIT_ENVSHADOW_TEXTURE6);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_7, TEXTURE_UNIT_ENVSHADOW_TEXTURE7);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_8, TEXTURE_UNIT_ENVSHADOW_TEXTURE8);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_9, TEXTURE_UNIT_ENVSHADOW_TEXTURE9);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_10, TEXTURE_UNIT_ENVSHADOW_TEXTURE10);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_11, TEXTURE_UNIT_ENVSHADOW_TEXTURE11);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_12, TEXTURE_UNIT_ENVSHADOW_TEXTURE12);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_13, TEXTURE_UNIT_ENVSHADOW_TEXTURE13);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_14, TEXTURE_UNIT_ENVSHADOW_TEXTURE14);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_15, TEXTURE_UNIT_ENVSHADOW_TEXTURE15);
+	shaderYarnTess.SetParam(SHADER_PARAM_envshadow_texture_16, TEXTURE_UNIT_ENVSHADOW_TEXTURE16);
+	shaderYarnTess.SetParam(SHADER_PARAM_integral_texture, TEXTURE_UNIT_INTEGRAL_TEXTURE);
 
 	shaderYarnTess.SetParam(SHADER_PARAM_shadow_R_texture, TEXTURE_UNIT_SHADOW_R_TEXTURE);
 
@@ -1510,30 +1799,6 @@ bool GLWidget::InitShaders() {
 	shaderCheckerBoard.RegisterParam(SHADER_PARAM_light_pos, "light_pos");
 	shaderCheckerBoard.BindProgram();
 	shaderCheckerBoard.SetParam(SHADER_PARAM_checker_texture, TEXTURE_UNIT_CHECKER_TEXUTRE);
-
-
-	// offline yarn shader
-	//shaderOfflineYarn.RegisterParam(SHADER_PARAM_light_dir, "light_dir");
-	//shaderOfflineYarn.RegisterParam(SHADER_PARAM_light_pos, "lightPos");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_model_matrix, "modelMatrix");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_camera_matrix, "camera_matrix");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_light_pos_world, "light_pos_world");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_view_dir, "view_dir");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_fiber_thickness, "fiber_thickness");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_use_ao, "use_ao");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_use_diffuse, "use_diffuse");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_use_self_shadow, "use_self_shadow");
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_center_offset, "center_offset");
-	//shaderOfflineYarn.RegisterParam(SHADER_PARAM_scale, "scale");
-
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_color, "default_color");
-
-	shaderOfflineYarn.RegisterParam(SHADER_PARAM_self_shadow_texture, "self_shadow_tex");
-
-	shaderOfflineYarn.BindProgram();
-	shaderOfflineYarn.SetParam(SHADER_PARAM_self_shadow_texture, TEXTURE_UNIT_SELFSHADOW_TEXTURE);
-
 
 	// offline core shader
 	shaderOfflineCore.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
@@ -1564,6 +1829,7 @@ bool GLWidget::InitShaders() {
 	shaderDepthBuffer.BindProgram();
 	shaderDepthBuffer.SetParam(SHADER_PARAM_depth_buffer_texture, TEXTURE_UNIT_DEPTHBUFFER_TEXUTRE);
 
+
 	shaderYarnTube.RegisterParam(SHADER_PARAM_view_matrix, "view_matrix");
 	shaderYarnTube.RegisterParam(SHADER_PARAM_shadow_matrix, "shadow_matrix");
 	shaderYarnTube.RegisterParam(SHADER_PARAM_shadow_texture, "shadow_tex");
@@ -1581,6 +1847,39 @@ bool GLWidget::InitShaders() {
 	shaderobject.SetParam(SHADER_PARAM_shadow_texture, TEXTURE_UNIT_SHADOW_TEXTURE);
 
 	return true;
+}
+
+void readSRBFParameters(const std::string& filename, std::vector<float>& lambdas,
+	std::vector<ks::vec3>& centers, Eigen::VectorXf& weights) {
+	std::ifstream infile(filename);
+	if (!infile.is_open()) {
+		std::cerr << "Error: Could not open file " << filename << std::endl;
+		return;
+	}
+
+	// Read lambdas
+	size_t numBasis;
+	infile >> numBasis;
+	lambdas.resize(numBasis);
+	for (size_t i = 0; i < numBasis; ++i) {
+		infile >> lambdas[i];
+	}
+
+	// Read centers
+	centers.resize(numBasis);
+	for (size_t i = 0; i < numBasis; ++i) {
+		double x, y, z;
+		infile >> x >> y >> z;
+		centers[i] = ks::vec3(x, y, z);
+	}
+
+	// Read weights
+	weights.resize(numBasis);
+	for (size_t i = 0; i < numBasis; ++i) {
+		infile >> weights[i];
+	}
+
+	infile.close();
 }
 
 void glfw_error_callback(int error, const char* description) {
@@ -1650,25 +1949,32 @@ void GLWidget::initializeGL()
 	mI4(1, 1) = 4;
 	mI4(2, 2) = 4;
 
-	//Initialization of buffers
-	InitOfflineYarns();
-	UpdateCrossSectionTexture();
-	Init1DCylinderNormTexture();
-	InitObject();
+
+	int w = WINDOW_WIDTH;
+	int h = WINDOW_HEIGHT;
+
+	for (int i = 0; i < 8; i++) residual_color[i] = ks::vec3(0.220, 0.220, 0.220);
+	residual_color[0] = ks::vec3(0, 3, 8);
+
+	adjust_color = ks::vec3(1, 1, 1);
+	biasValue = -10;
 
 	fiberData.g_yarn_radius = 0.02866;
 	fiberData.g_fiber_thickness = 0.008f;
 
 	offlineCoreRenderBuffer = new OpenGLRenderBuffer;
 	offlineCoreRenderBuffer->Initialize(true);
-	offlineCoreRenderBuffer->Resize(DEFAULT_WIDTH * 4, DEFAULT_HEIGHT * 4, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
+	offlineCoreRenderBuffer->Resize(DEFAULT_WIDTH, DEFAULT_HEIGHT, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
 
 	offlineCoreTangentRenderBuffer = new OpenGLRenderBuffer;
 	offlineCoreTangentRenderBuffer->Initialize(true);
-	offlineCoreTangentRenderBuffer->Resize(DEFAULT_WIDTH * 4, DEFAULT_HEIGHT * 4, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
+	offlineCoreTangentRenderBuffer->Resize(DEFAULT_WIDTH, DEFAULT_HEIGHT, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
 
-	int w = WINDOW_WIDTH;
-	int h = WINDOW_HEIGHT;
+	//Initialization of buffers
+	InitOfflineYarns();
+	UpdateCrossSectionTexture();
+	std::string filepath = "./rib_handles/1.obj";
+	InitObject(filepath);
 
 	SSAARenderBuffer = new OpenGLRenderBuffer;
 	SSAARenderBuffer->Initialize(true, 2);
@@ -1678,7 +1984,62 @@ void GLWidget::initializeGL()
 	SSAARenderBuffer2->Initialize(true, 2);
 	SSAARenderBuffer2->Resize(w * 2, h * 2, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
 
-	InitShadowTextureBuffer();
+	//env map loading
+	//std::string SRBF_p_file = "D:/StitchMesh4.0/precompute/16/16lobe.txt";
+	std::string SRBF_p_file = "./precompute/fit.txt";
+	readSRBFParameters(SRBF_p_file, lambdas_final, centers_final, weights);
+	weights_final = weights;
+	
+
+	//for flame
+	/*weights_final[0] = 5;
+	weights_final[1] = 5;
+	weights_final[2] = 0;
+	weights_final[3] = 1;
+	lambdas_final[0] = 1;
+	lambdas_final[1] = 1;
+	lambdas_final[2] = 1;
+	lambdas_final[3] = 1;
+	centers_final[0] = (ks::vec3(0, 0, 3)).normalized();
+	centers_final[1] = (ks::vec3(4, 4, 3)).normalized();
+	centers_final[2] = (ks::vec3(0, -4, 3)).normalized();
+	centers_final[3] = (ks::vec3(2, 2, 3)).normalized();*/
+
+	////for rib
+	weights_final[0] = 2;
+	weights_final[1] = 0;
+	weights_final[2] = 4;
+	weights_final[3] = 0;
+	lambdas_final[0] = 5;
+	lambdas_final[1] = 16;
+	lambdas_final[2] = 6;
+	lambdas_final[3] = 32;
+	centers_final[0] = (ks::vec3(-2, 3, 8)).normalized();
+	centers_final[1] = (ks::vec3(0, 0, -8)).normalized();
+	centers_final[2] = (ks::vec3(10, 2, 2)).normalized();
+	centers_final[3] = (ks::vec3(3, 5, -2)).normalized();
+
+	//for reallife data
+	//weights_final[0] = 3;
+	//weights_final[1] = 3;
+	//weights_final[2] = 2;
+	//weights_final[3] = 3;
+	//lambdas_final[0] = 4;
+	//lambdas_final[1] = 2;
+	//lambdas_final[2] = 4;
+	//lambdas_final[3] = 16;
+	//centers_final[0] = (ks::vec3(-2, 3, 8)).normalized();
+	//centers_final[1] = (ks::vec3(0, 0, -8)).normalized();
+	//centers_final[2] = (ks::vec3(-3, -5, -2)).normalized();
+	//centers_final[3] = (ks::vec3(3, 5, -2)).normalized();
+
+	//realife/rib
+	adjust_color = ks::vec3(1.21, 1.08, 0.81);
+	
+	//flame
+	//adjust_color = ks::vec3(1.3, 1.0, 1.0);
+
+	InitEnvShadowTextureBuffer();
 
 	glGenTextures(1, &coreTex);
 	//UpdateCoreTexture();
@@ -1699,7 +2060,39 @@ void GLWidget::initializeGL()
 	//fiberData.g_color[1] = g_color_chart[g_shading_idx - 1][1];
 	//fiberData.g_color[2] = g_color_chart[g_shading_idx - 1][2];
 
+	//env map baking
+	LoadIntegration("./precompute/table_green.png");
+	createRandomTexture(1024, 1024);
+
 	g_shading_idx = 1;
+}
+
+void GLWidget::createRandomTexture(int width, int height) {
+	// 初始化随机数种子
+	std::srand(static_cast<unsigned>(std::time(nullptr)));
+
+	// 创建随机数数据
+	std::vector<float> randomData(width * height * 4); // 4 通道（RGBA）
+	for (int i = 0; i < width * height * 4; ++i) {
+		randomData[i] = static_cast<float>(std::rand()) / RAND_MAX; // 随机数范围 [0, 1]
+	}
+
+	// 创建纹理
+	glGenTextures(1, &RandomTex);
+	glBindTexture(GL_TEXTURE_2D, RandomTex);
+
+	// 上传纹理数据
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, randomData.data());
+
+	// 设置纹理参数
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return;
 }
 
 float bsplineBase3(int idx, double u)
@@ -1779,6 +2172,7 @@ void GLWidget::InitShadowTextureBuffer()
 
 void GLWidget::UpdateShadowTexture()
 {
+	glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
 	//specific for flame pattern
 	//g_light_pos = ks::vec3(0, 0, 40);
 	znear = 15.f;
@@ -1855,95 +2249,206 @@ void GLWidget::UpdateShadowTexture()
 
 }
 
+void GLWidget::InitEnvShadowTextureBuffer()
+{
+	int prevBuffer;
+
+	//depth_fbo = new QOpenGLFramebufferObject(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, QOpenGLFramebufferObject::Depth);
+	for (int i = 0; i < 16; i++) {
+		glGenFramebuffers(1, &depth_fbo_env[i]);
+		glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo_env[i]);
+
+		glGenTextures(1, &depth_tex_env[i]);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[i]);
+
+		glTexStorage2D(GL_TEXTURE_2D, 11, GL_DEPTH_COMPONENT32F, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depth_tex_env[i], 0);
+
+	}
+
+	glEnable(GL_DEPTH_TEST);
+
+}
+
+void GLWidget::UpdateEnvShadowTexture()
+{
+	for (int i = 0; i < 4; i++) {
+
+		//specific for flame pattern
+		//g_light_pos = ks::vec3(0, 0, 40);
+		znear = 15.f;
+		zfar = 60.f;
+		fov = 60.f;
+
+
+		//light_proj_matrix = ks::SetPerspective(DEG2RAD(fov), aspect, znear, zfar);
+
+		//shadow pass orthogonal projection parameter
+		float t, b, l, r;
+		////for pattern
+		t = 12;
+		b = -12;
+		l = -12;
+		r = 12;
+
+		////for glove
+		/*t = 8;
+		b = -8;
+		l = -8;
+		r = 8;*/
+
+		//for woven pattern
+		//t = 4;
+		//b = -4;
+		//l = -4;
+		//r = 4;
+		znear = 10;
+		zfar = 100;
+
+		envlight_pos[i] = centers_final[i] * 30 + center;
+		light_proj_matrix_env[i] = ks::SetOrtho(l, r, t, b, znear, zfar);
+		light_view_matrix_env[i] = ks::SetView(envlight_pos[i], center, ks::vec3(0.0f, 1.0f, 0.0f));
+		//light_view_matrix = mIdentity;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo_env[i]);
+		glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(4.0f, 4.0f);
+
+		static const GLenum buffs[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, buffs);
+		glClearBufferfv(GL_COLOR, 0, zero);
+		glClearBufferfv(GL_DEPTH, 0, ones);
+
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_FRONT);
+		glEnable(GL_DEPTH_TEST);
+
+		glDisable(GL_CULL_FACE);
+
+		shaderYarnTubeDepth.BindProgram();
+		ks::mat4 light_mat = (light_proj_matrix_env[i] * light_view_matrix_env[i]);
+		ks::mat4 lookup;
+		lookup << 0.5f, 0, 0, 0.5f,
+			0, 0.5f, 0, 0.5f,
+			0, 0, 0.5f, 0.5f,
+			0, 0, 0, 1;
+		light_matrix_env[i] = lookup * light_mat;
+		shaderYarnTubeDepth.SetParamMatrix4(SHADER_PARAM_view_matrix, light_mat.data());
+		shaderYarnTubeDepth.SetParam(SHADER_PARAM_TUBE_WIDTH, fiberData.g_yarn_radius);
+		ks::vec3 light_Dir = centers_final[i].normalized();
+		shaderYarnTubeDepth.SetParam(SHADER_PARAM_Light_Dir, light_Dir.x(), light_Dir.y(), light_Dir.z());
+
+		glBindBuffer(GL_ARRAY_BUFFER, vboYarn[VBO_YARN_VERTEX]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * array_Vertex.size(), NULL, GL_DYNAMIC_DRAW);
+
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * array_Vertex.size(), array_Vertex.data());
+
+		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)0);
+		glEnableVertexAttribArray(0);
+
+		ks::mat4 mat = light_proj_matrix_env[i] * light_view_matrix_env[i];
+		//transpose before set into opengl
+		ks::mat4 gl_mat = mat;
+		shaderYarnTubeDepth.SetParamMatrix4(SHADER_PARAM_view_matrix, gl_mat.data());
+
+		glPatchParameteri(GL_PATCH_VERTICES, 4);
+		//glEnable(GL_POLYGON_OFFSET_FILL);
+		//glPolygonOffset(4.0f, 4.0f);
+
+
+		//glEnable(GL_CULL_FACE);
+		//glCullFace(GL_FRONT);
+		//glEnable(GL_DEPTH_TEST);
+
+		//glDisable(GL_CULL_FACE);
+
+#if USE_KNIT
+		glDrawArrays(GL_PATCHES, 0, (int)_knit[currModel][g_current_frame_num]._long_yarn_ctl_pts.size());
+#else
+		glDrawArrays(GL_PATCHES, 0, vboYarnVertCount);
+		//glDrawArrays(GL_TRIANGLES, 0, vboYarnVertCount/3 * 3);
+#endif
+
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object_ibo);
+		glBindBuffer(GL_ARRAY_BUFFER, object_vao);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+		glEnableVertexAttribArray(0);
+
+		// specify normal attribute
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE,
+			6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+		glEnableVertexAttribArray(1);
+
+		shaderobjectshadow.BindProgram();
+		
+		shaderobjectshadow.SetParamMatrix4(SHADER_PARAM_shadow_matrix, light_mat.data());
+
+		//glDrawElements(GL_TRIANGLES, object_tri_num * 3, GL_UNSIGNED_INT, NULL);
+		glDrawArrays(GL_TRIANGLES, 0, object_tri_num * 3);
+		glDisableVertexAttribArray(1);
+	}
+}
+
+void GLWidget::LoadIntegration(char* filename)
+{
+	std::vector<unsigned char> image;
+	unsigned img_width = 0, img_height = 0;
+
+	if (!loadRGBPNG(filename, image, img_width, img_height)) {
+		std::cerr << "Failed to load image: " << filename << std::endl;
+		return;
+	}
+
+	GLfloat* pixels = new GLfloat[img_width * img_height * 3];
+	for (size_t i = 0; i < image.size(); ++i) {
+		pixels[i] = gammaCorrection(image[i] / 255.0f, 1);
+		//if (pixels[i] > 0.1) std::cout << i << std::endl;
+	}
+
+	g_integral_width = img_width;
+	g_integral_height = img_height;
+	g_integral_angle_res = int(sqrt(img_height));
+	g_integral_lambda_res = img_width / g_integral_angle_res;
+
+	std::cout << "loading integration height: " << img_height << " width: " << img_width << std::endl;
+
+	glGenTextures(1, &IntegralTex);
+	glBindTexture(GL_TEXTURE_2D, IntegralTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_integral_width, g_integral_height, 0, GL_RGB, GL_FLOAT, pixels);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	delete[] pixels;
+}
 
 void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
 {
 	array_Vertex.resize(0);
 	ks::AABB3 bound;
 	bound.reset();
+	float arclen = 0;
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
-		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 3; i += 1) {
-			ks::vec3 c0 = ks::vec3(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1 = ks::vec3(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2 = ks::vec3(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3 = ks::vec3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			for (int j = 0; j <= 10; j++) {
-				const float t = float(j) / float(10);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
-		}
-		// estimation of number of segments per patch
-		int segment = 10; // segment per patch
-
-		float worldSpaceStepSize = 0.01;
-		std::vector<ks::vec3> yarn_divided(0);
-
-		float arclen = 0;
-		// step through arclen
-		// std::cout << "segment is " << segment << " " << newsize << " " << numCurvePatches <<
-		// std::endl;
-		float carryThrough = 0.f;
-		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 3; i += 1) {
-			ks::vec3 c0 = ks::vec3(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1 = ks::vec3(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2 = ks::vec3(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3 = ks::vec3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
-
-			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-			float segmentArcLen = 0;
-			for (int j = 0; j <= segment; j++) {
-				const float t = float(j) / float(segment);
-				// cubic b-spline
-				ks::vec3 p = cubicQxy(t, c0, c1, c2, c3);
-				if (prevOne.x() != FLT_MAX)
-					segmentArcLen += (p - prevOne).norm();
-				prevOne = p;
-			}
-			arclen += segmentArcLen;
-
-			float nextPos = carryThrough;
-			while (nextPos < segmentArcLen) {
-				float t = nextPos / segmentArcLen;
-
-				// std::cout << "nextPos is " << nextPos << "segmentarc " << segmentArcLen << std::endl;
-				//  put one
-				//  cubic b-spline
-				ks::vec3 cur_t = cubicQxy(t, c0, c1, c2, c3);
-				ks::vec3 cur_t_1 = cubicQxy(t + 0.01f, c0, c1, c2, c3);
-
-				yarn_divided.push_back(cur_t);
-
-				nextPos += worldSpaceStepSize;
-			}
-			carryThrough = nextPos - segmentArcLen;
-
-			//if (i + 3 >= Yarn_file.firstControlPoint_[yarn_idx + 1] - 3) {
-			//	// a rounding method that "on average" gets the right length
-			//	if (carryThrough < 0.5f * worldSpaceStepSize) {
-			//		float t = nextPos / segmentArcLen;
-			//		vec3 cur_t = cubicQxy(t, c0, c1, c2, c3);
-			//		vec3 cur_t_1 = cubicQxy(t + 0.01f, c0, c1, c2, c3);
-			//		yarn_divided.push_back(cur_t);
-			//	}
-			//}
-		}
-		//std::cout << yarn_idx << " 's length is " << arclen / 0.3802 << std::endl;
-		arclen = 0;
-		for (int i = 0; i < yarn_divided.size() - 3; i++) {
+		for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 15; i += 1) {
 
 			ks::vec3 c0, c1, c2, c3;
 			{
-				c0 = yarn_divided[i];
-				c1 = yarn_divided[i + 1];
-				c2 = yarn_divided[i + 2];
-				c3 = yarn_divided[i + 3];
+				c0 = ks::vec3(Yarn_ctrPoints[i * 3 + 0], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
+				c1 = ks::vec3(Yarn_ctrPoints[i * 3 + 3], Yarn_ctrPoints[i * 3 + 4], Yarn_ctrPoints[i * 3 + 5]);
+				c2 = ks::vec3(Yarn_ctrPoints[i * 3 + 6], Yarn_ctrPoints[i * 3 + 7], Yarn_ctrPoints[i * 3 + 8]);
+				c3 = ks::vec3(Yarn_ctrPoints[i * 3 + 9], Yarn_ctrPoints[i * 3 + 10], Yarn_ctrPoints[i * 3 + 11]);
 			}
 			array_Vertex.push_back(c0.x());
 			array_Vertex.push_back(c0.y());
@@ -1963,8 +2468,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			}
 			//arclen += segmentArcLen;
 			//std::cout << i << "th segment length is " << segmentArcLen << std::endl;
-			segmentArcLen = worldSpaceStepSize;
-			segmentArcLen = segmentArcLen / 0.38;
+			segmentArcLen = segmentArcLen;
 			arclen += segmentArcLen;
 
 			array_Vertex.push_back(c1.x());
@@ -1987,18 +2491,27 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	}
 	vboYarnVertCount = array_Vertex.size() / 4;
 	center = bound.center();
+	center += ks::vec3(0.7, 0, 0);
 	camera.SetTarget(center);
 
+	InitShadowTextureBuffer();
 	std::cout << "center is " << center << std::endl;
 	glGenBuffers(1, &vboYarn[VBO_YARN_VERTEX]);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	UpdateEnvShadowTexture();
 	ks::vec2 initialPos;
 	ImVec2 last_mouse_pos = ImGui::GetMousePos();
 
 	vgm::Quat qRot = vgm::Quat(1.f, 0.f, 0.f, 0.f);
 	vgm::Vec3 lightControlDir = { 0.64f, -0.72f, 0.13f };
 	float thickness = fiberData.g_yarn_radius * 10;
+
+	float speed = 0.04f;
+	ks::vec3 r_center = center;
+	int save_frame = 0;
+	int Frame = 0;
+	bool sequence_save = false;
 	while (!glfwWindowShouldClose(window))
 	{
 
@@ -2036,7 +2549,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			ks::mat4 light_mat = (light_proj_matrix * light_view_matrix);
 			shaderobjectshadow.SetParamMatrix4(SHADER_PARAM_shadow_matrix, light_mat.data());
 
-			glDrawElements(GL_TRIANGLES, object_tri_num * 3, GL_UNSIGNED_INT, NULL);
+			//glDrawArrays(GL_TRIANGLES, 0, object_tri_num * 3);
 			glDisableVertexAttribArray(1);
 
 			//yarn shadow
@@ -2050,13 +2563,13 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		int w = display_w;
 		int h = display_h;
 		//std::cout << " w ,h is " << w << " " << h << std::endl;
-		SSAARenderBuffer->Resize(w * 3, h * 3, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
+		SSAARenderBuffer->Resize(w * 2, h * 2, OpenGLRenderBuffer::FORMAT_FLOAT_32, 4);
 		SSAARenderBuffer->Bind();
 
-		glViewport(0, 0, w*3, h*3);
+		glViewport(0, 0, w * 2, h * 2);
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		GLfloat clearColor[] = { 0.2f, 0.2f, 0.2f, 1.f };
+		GLfloat clearColor[] = { 0.0f, 0.0f, 0.0f, 1.f };
 		glClearBufferfv(GL_COLOR, 0, clearColor);
 
 		ks::Transform vp_transform(camera.GetMatrix());
@@ -2078,7 +2591,6 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		lightPosCam4 = trans * ks::vec4(g_light_pos.x(), g_light_pos.y(), g_light_pos.z(), 1.f);
 
 		camera_matrix_m4 = camera.GetViewMatrix();
-
 		//texture binding
 		shaderYarnTess.BindProgram();
 
@@ -2109,13 +2621,14 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		shaderYarnTess.SetParam(SHADER_PARAM_Delta_0, mDelta_0);
 		shaderYarnTess.SetParam(SHADER_PARAM_Delta_1, mDelta_1);
 		shaderYarnTess.SetParam(SHADER_PARAM_Delta_2, mDelta_2);
+		shaderYarnTess.SetParam(SHADER_PARAM_AJSUST, adjust_color.x(), adjust_color.y(), adjust_color.z());
 
 		ks::mat4 gl_cameraMatrix_m4 = camera_matrix_m4;
 		shaderYarnTess.SetParamMatrix4(SHADER_PARAM_camera_matrix, camera_matrix_m4.data());
 
 		shaderYarnTess.SetParam(SHADER_PARAM_use_lod, fiberData.g_use_lod);
 		shaderYarnTess.SetParam(SHADER_PARAM_use_lod_vis, fiberData.g_use_lod_vis);
-		shaderYarnTess.SetParam(SHADER_PARAM_use_ao, fiberData.g_use_ao);
+		shaderYarnTess.SetParam(SHADER_PARAM_use_envmap, g_use_envmap);
 		shaderYarnTess.SetParam(SHADER_PARAM_use_diffuse, fiberData.g_use_diffuse);
 		shaderYarnTess.SetParam(SHADER_PARAM_use_specular, fiberData.g_use_specular);
 		shaderYarnTess.SetParam(SHADER_PARAM_use_regular_fiber, fiberData.g_use_regular_fiber);
@@ -2193,6 +2706,13 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_CROSS_SECTION_TEXUTRE);
 		glBindTexture(GL_TEXTURE_1D, crossSectionTex);
 		glTexParameterf(GL_TEXTURE_1D, GL_TEXTURE_LOD_BIAS, biasValue);
+
+		//glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_CYLINDER_TEXUTRE);
+		//glBindTexture(GL_TEXTURE_1D, cylinderTex);
+
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_SELFSHADOW_TEXTURE);
+		glBindTexture(GL_TEXTURE_3D, selfShadowTex);
+		glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_LOD_BIAS, biasValue);
 
 		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_CORE_AO_TEXTURE);
 		glBindTexture(GL_TEXTURE_3D, CoreAOTex);
@@ -2280,6 +2800,50 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		glBindTexture(GL_TEXTURE_2D, depth_debug_tex);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, biasValue);
 
+		// ---------------------------------------------------------          ENV MAP SHADOWING TEXTURE          ---------------------------------------------------------------
+
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[0]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[1]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[2]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[3]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[4]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[5]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[6]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[7]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[8]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE10);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[9]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE11);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[10]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE12);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[11]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE13);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[12]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE14);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[13]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE15);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[14]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE16);
+		glBindTexture(GL_TEXTURE_2D, depth_tex_env[15]);
+		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_INTEGRAL_TEXTURE);
+		glBindTexture(GL_TEXTURE_2D, IntegralTex);
+
+		//shaderYarnTess.SetParam(SHADER_PARAM_Beta_Diffuse, beta_diffuse);
+		shaderYarnTess.SetParamsV3(SHADER_PARAM_envlight_dirs, 16, (float*)centers_final.data());
+		shaderYarnTess.SetParamsMatrix4(SHADER_PARAM_envshadow_matrixs, 16, (float*)&light_matrix_env[0]);
+		shaderYarnTess.SetParams(SHADER_PARAM_envlight_intensity, 16, (float*)weights_final.data());
+		shaderYarnTess.SetParams(SHADER_PARAM_envlight_lambdas, 16, (float*)lambdas_final.data());
+
+		// ---------------------------------------------------------          Fiber level details TEXTURE          ---------------------------------------------------------------
 		glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_CORE_TEXTURE);
 		glBindTexture(GL_TEXTURE_2D, coreTex);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, biasValue);
@@ -2310,10 +2874,56 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			shaderFlyaway.SetParam(SHADER_PARAM_D_Cross_Inter, d_cross_inter);
 			shaderFlyaway.SetParam(SHADER_PARAM_Beta_Diffuse, beta_diffuse);
 			shaderFlyaway.SetParam(SHADER_PARAM_TUBE_WIDTH, fiberData.g_yarn_radius);
-			shaderFlyaway.SetParam(SHADER_PARAM_Delta_2, float(g_flyaway_texture_height - 10.0) / float(498));
+			shaderFlyaway.SetParam(SHADER_PARAM_Delta_2, float(g_flyaway_texture_height) / float(g_regular_width));
 			shaderFlyaway.SetParam(SHADER_PARAM_TEXTURE_OFFSET, mDelta_2);
 			shaderFlyaway.SetParam(SHADER_PARAM_Delta_0, mDelta_0);
 			shaderFlyaway.SetParam(SHADER_PARAM_flyaway_texture_height, float(g_flyaway_texture_height));
+			shaderFlyaway.SetParamsV3(SHADER_PARAM_Flyaway_AO, 8, (float*)&residual_color[0]);
+			shaderFlyaway.SetParam(SHADER_PARAM_inv_ply_alpha, -1.0f / fiberData.g_yarn_alpha);
+			//shaderYarnTess.SetParam(SHADER_PARAM_Beta_Diffuse, beta_diffuse);
+			shaderFlyaway.SetParamsV3(SHADER_PARAM_envlight_dirs, 16, (float*)centers_final.data());
+			shaderFlyaway.SetParamsMatrix4(SHADER_PARAM_envshadow_matrixs, 16, (float*)&light_matrix_env[0]);
+			shaderFlyaway.SetParams(SHADER_PARAM_envlight_intensity, 16, (float*)weights_final.data());
+			shaderFlyaway.SetParams(SHADER_PARAM_envlight_lambdas, 16, (float*)lambdas_final.data());
+			shaderFlyaway.SetParam(SHADER_PARAM_use_envmap, g_use_envmap);
+			shaderFlyaway.SetParam(SHADER_PARAM_AJSUST, adjust_color.x(), adjust_color.y(), adjust_color.z());
+
+			// ---------------------------------------------------------          ENV MAP SHADOWING TEXTURE          ---------------------------------------------------------------
+
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[0]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[1]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[2]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[3]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE5);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[4]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE6);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[5]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE7);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[6]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE8);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[7]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE9);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[8]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE10);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[9]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE11);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[10]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE12);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[11]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE13);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[12]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE14);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[13]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE15);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[14]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_ENVSHADOW_TEXTURE16);
+			glBindTexture(GL_TEXTURE_2D, depth_tex_env[15]);
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_INTEGRAL_TEXTURE);
+			glBindTexture(GL_TEXTURE_2D, IntegralTex);
 
 			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_SHADOW_TEXTURE);
 			glBindTexture(GL_TEXTURE_2D, depth_tex);
@@ -2321,6 +2931,9 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_FLYAWAY_TEXTURE);
 			glBindTexture(GL_TEXTURE_2D, flyawayTex);
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, biasValue);
+
+			glActiveTexture(GL_TEXTURE0 + TEXTURE_UNIT_RANDOM_TEXTURE);
+			glBindTexture(GL_TEXTURE_2D, RandomTex);
 
 			glDrawArrays(GL_PATCHES, 0, vboYarnVertCount);
 			glDisableVertexAttribArray(0);
@@ -2353,7 +2966,7 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		glBindTexture(GL_TEXTURE_2D, depth_tex);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, biasValue);
 
-		glDrawElements(GL_TRIANGLES, object_tri_num * 3, GL_UNSIGNED_INT, NULL);
+		glDrawArrays(GL_TRIANGLES, 0, object_tri_num * 3);
 
 		SSAARenderBuffer->Unbind();
 
@@ -2403,14 +3016,15 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-		
+
 		//----------------------------------------------------        light rotation/translation        ---------------------------------------------------------
 		ImGui::Begin("Light Rotation");
-		ImGui::SetWindowFontScale(2.f);
-		ImGui::SetWindowSize(ImVec2(300, 650));
+		//ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::SetWindowFontScale(1.f);
+		//ImGui::SetWindowSize(ImVec2(400, 650));
 		lightControlDir = { camera.GetCameraPosition().x(), camera.GetCameraPosition().y(), camera.GetCameraPosition().z() };
 		ImGui::gizmo3D("##modelGizmo", qRot, lightControlDir, 250, imguiGizmo::modeDual | imguiGizmo::cubeAtOrigin);
-		
+
 		vgm::Mat4 modelMat4 = mat4_cast(qRot);
 		vgm::Vec4 lightdir = modelMat4 * vgm::Vec4(0, 0, 1, 1.f);
 		g_light_pos = ks::vec3(lightdir.x, lightdir.y, lightdir.z) * 25;
@@ -2425,7 +3039,8 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 
 		float wheel_delta = io.MouseWheel;
 		if (wheel_delta != 0.0f) {
-			camera.AddDistance(-wheel_delta * 0.4);
+			camera.AddDistance(-wheel_delta * 0.1);
+			camera.SetAspect(1.5);
 		}
 
 		ImVec2 mouse_pos = ImGui::GetMousePos();
@@ -2434,18 +3049,38 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 			last_mouse_pos = mouse_pos;
 		}
 
-		if (ImGui::IsMouseDown(1)) 
-		{
-				camera.AddRotation(diff.x * 0.01f, diff.y * 0.01f);
+		ks::vec2 move_Dist(0, 0);
+		if (ImGui::IsKeyDown(ImGuiKey_W)) {
+			move_Dist.y() += speed; // W - 向上移动
 		}
-		 
+		if (ImGui::IsKeyDown(ImGuiKey_S)) {
+			move_Dist.y() -= speed; // S - 向下移动
+		}
+		if (ImGui::IsKeyDown(ImGuiKey_A)) {
+			move_Dist.x() -= speed; // A - 向左移动
+		}
+		if (ImGui::IsKeyDown(ImGuiKey_D)) {
+			move_Dist.x() += speed; // D - 向右移动
+		}
+		ImGui::SliderFloat("move_speed", &speed, 0.0f, 0.1f);
+
+		ks::vec3 cam_pos = camera.GetCameraPosition();
+		ks::Frame frame((cam_pos - r_center).normalized());
+		r_center = r_center + frame.t * move_Dist.x() * speed + frame.b * move_Dist.y() * speed;
+		camera.SetTarget(r_center);
+
+		if (ImGui::IsMouseDown(1))
+		{
+			camera.AddRotation(diff.x * 0.01f, diff.y * 0.01f);
+		}
+
 
 		if (ImGui::SliderFloat("yarn_thickness", &thickness, 0.0f, 1.f)) {
 			fiberData.g_yarn_radius = thickness * 0.1;
 		}
 
-		ImGui::SliderFloat("LOD_Bias", &biasValue, -5, 5);
-		
+		//ImGui::SliderFloat("LOD_Bias", &biasValue, -10, 10);
+
 		bool flyaway_regenerate = false;
 		if (ImGui::SliderFloat("hair_density", &fiberData.g_flyaway_hair_density, 0, 120)) {
 			flyaway_regenerate = true;
@@ -2459,9 +3094,167 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 		if (ImGui::SliderFloat("hair_radius", &fiberData.g_flyaway_hair_re_mu, 0, 0.1)) {
 			flyaway_regenerate = true;
 		}
+		if (ImGui::Button("Turn on/off envmap"))
+		{
+			g_use_envmap = !g_use_envmap;  // 显示对话框
+			if (g_use_envmap == true) {
+				//rib
+				AR = ks::vec3(0.15, 0.15, 0.15);
+				AD = ks::vec3(0.09, 0.35, 0.135);
+				ATT = ks::vec3(0.15, 0.30, 0.21);
+				betaR = 0.6;
+				//flame
+				/*AR = ks::vec3(0.2, 0.2, 0.2);
+				AD = ks::vec3(0.5, 0.18, 0.18);
+				ATT = ks::vec3(0.3, 0.19, 0.22);
+				betaR = 0.6;*/
+			}
+			else {
+				//rib
+				AR = ks::vec3(0.15, 0.15, 0.15);
+				AD = ks::vec3(0.09, 0.35, 0.135);
+				ATT = ks::vec3(0.15, 0.30, 0.21);
+				betaR = 0.6;
+				//flame
+				/*AR = ks::vec3(0.2, 0.2, 0.2);
+				AD = ks::vec3(0.5, 0.18, 0.18);
+				ATT = ks::vec3(0.3, 0.19, 0.22);
+				betaR = 0.6;*/
+			}
+		}
+		ImGui::ColorEdit3("ATT Color", &ATT[0]);
+		ImGui::ColorEdit3("AD Color", &AD[0]);
+		ImGui::DragFloat("AR color", &AR[0], 0.01f, 0.f, 1.f, "%.2f");
+		AR = ks::vec3(AR[0], AR[0], AR[0]);
+
+		if (ImGui::Button("Turn on/off flyaway"))
+		{
+			fiberData.g_use_flyaways = !fiberData.g_use_flyaways;  // 显示对话框
+		}
 		if (flyaway_regenerate) UpdateOfflineYarn();
 
+		if (ImGui::Button("Save") ||  sequence_save) {
+			std::vector<float> outputData(WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+			glReadPixels(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_FLOAT, outputData.data());
+			
+			std::vector<unsigned char> pixelData(WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+
+			for (size_t i = 0; i < WINDOW_HEIGHT * WINDOW_WIDTH * 4; ++i) {
+				pixelData[i] = static_cast<unsigned char>(std::clamp(outputData[i] * 255.0f, 0.0f, 255.0f));
+			}
+
+			std::string frame_name = "./result/sim_frame/view" + std::to_string(save_frame) + ".png";
+			// Save as PNG
+			unsigned error = lodepng::encode(frame_name, pixelData, WINDOW_WIDTH, WINDOW_HEIGHT);
+			if (error) {
+				std::cerr << "PNG encoder error: " << lodepng_error_text(error) << std::endl;
+			}
+			save_frame++;
+			if(Frame==50) sequence_save = false;
+		}
+
+		if (ImGui::Button("Sequence Save")) {
+			sequence_save = true;
+		}
+		float arclen = 0;
+		if (sequence_save) {
+			std::string	fileName = "./rib/spline_points" + std::to_string(Frame) + ".txt";
+			//std::string	fileName = "D:/StitchMesh4.0/flame/spline_points" + std::to_string(Frame) + ".txt";
+			std::vector<ks::vec3> yarn_ctrP_new = ReadVertFromTxt(fileName);
+			int writein_cnt = 0;
+			for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
+				for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 15; i += 1) {
+
+					ks::vec3 c0, c1, c2, c3;
+					{
+						c0 = yarn_ctrP_new[i];
+						c1 = yarn_ctrP_new[i + 1];
+						c2 = yarn_ctrP_new[i + 2];
+						c3 = yarn_ctrP_new[i + 3];
+					}
+					array_Vertex[writein_cnt * 4 + 0] = c0.x();
+					array_Vertex[writein_cnt * 4 + 1] = c0.y();
+					array_Vertex[writein_cnt * 4 + 2] = c0.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c1.x();
+					array_Vertex[writein_cnt * 4 + 1] = c1.y();
+					array_Vertex[writein_cnt * 4 + 2] = c1.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c2.x();
+					array_Vertex[writein_cnt * 4 + 1] = c2.y();
+					array_Vertex[writein_cnt * 4 + 2] = c2.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c3.x();
+					array_Vertex[writein_cnt * 4 + 1] = c3.y();
+					array_Vertex[writein_cnt * 4 + 2] = c3.z();
+					writein_cnt += 1;
+
+				}
+				std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
+			}
+			std::string filepath = "./rib_handles/" + std::to_string(Frame) + ".obj";
+			InitObject(filepath);
+			Frame++;
+			UpdateEnvShadowTexture();
+			//fiberData.g_yarn_radius = 0.040 + 0.015 * (float(Frame) / 50.0);
+		}
+
+		if (ImGui::SliderInt("Frame_Cnt", &Frame, 0, 50)) {
+			std::string	fileName = "./rib/spline_points" + std::to_string(Frame) + ".txt";
+			//std::string	fileName = "D:/StitchMesh4.0/flame/spline_points" + std::to_string(Frame) + ".txt";
+			std::vector<ks::vec3> yarn_ctrP_new = ReadVertFromTxt(fileName);
+			int writein_cnt = 0;
+			for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
+				float arclen = 0;
+				for (int i = first_ctrP_idx[yarn_idx]; i < first_ctrP_idx[yarn_idx + 1] - 15; i += 1) {
+
+					ks::vec3 c0, c1, c2, c3;
+					{
+						c0 = yarn_ctrP_new[i];
+						c1 = yarn_ctrP_new[i+1];
+						c2 = yarn_ctrP_new[i+2];
+						c3 = yarn_ctrP_new[i+3];
+					}
+					array_Vertex[writein_cnt * 4 + 0] = c0.x();
+					array_Vertex[writein_cnt * 4 + 1] = c0.y();
+					array_Vertex[writein_cnt * 4 + 2] = c0.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c1.x();
+					array_Vertex[writein_cnt * 4 + 1] = c1.y();
+					array_Vertex[writein_cnt * 4 + 2] = c1.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c2.x();
+					array_Vertex[writein_cnt * 4 + 1] = c2.y();
+					array_Vertex[writein_cnt * 4 + 2] = c2.z();
+
+					writein_cnt += 1;
+					array_Vertex[writein_cnt * 4 + 0] = c3.x();
+					array_Vertex[writein_cnt * 4 + 1] = c3.y();
+					array_Vertex[writein_cnt * 4 + 2] = c3.z();
+					writein_cnt += 1;
+
+				}
+				std::cout << yarn_idx << " s real arclen is " << arclen << std::endl;
+			}
+			std::string filepath = "./rib_handles/" + std::to_string(Frame) + ".obj";
+			InitObject(filepath);
+			Frame++;
+			UpdateEnvShadowTexture();
+			//fiberData.g_yarn_radius = 0.040 + 0.015 * (float(Frame) / 50.0);
+			//adjust_color.z() = 0.81 - 0.09 * (float(Frame) / 50.0);
+		}
 		ImGui::End();
+
+		ImGui::Begin("FrameRate");
+		ImGui::SetWindowFontScale(1.5f); // 放大 1.5 倍
+		ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
+
 		ImGui::Render();
 		// end for rotation control panel
 		//double currentTime = glfwGetTime();

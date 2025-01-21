@@ -2,7 +2,7 @@
 
 layout(location = 0) out vec4 color;
 
-flat in vec3 vertex_normal;
+in vec3 vertex_normal;
 in vec3 posWorld;
 uniform sampler2DShadow shadow_tex;
 uniform mat4 shadow_matrix;

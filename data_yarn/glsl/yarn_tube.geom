@@ -19,7 +19,7 @@ out vec4 shadowPos;
 vec3 GetWDif(vec3 sDir)
 {
 	vec3 bitangent = normalize(cross(normalize(sDir), light_dir));
-	return bitangent * tube_width * 0.8;
+	return bitangent * tube_width;
 }
 
 void main(void)         

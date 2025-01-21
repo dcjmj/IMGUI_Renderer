@@ -52,10 +52,11 @@ vec3 BezierDeriv( float s, vec3 b0, vec3 b1, vec3 b2, vec3 b3 )
 #define M43	-1.5
 #define M44	0.5
 
+uniform float inv_alpha_ply;
 void main(void)                                                                     
 {    								
 	float t = gl_TessCoord.x;
-	float arclength = mix(arclengthTCS[0], arclengthTCS[3], t);			//t * (arclengthTCS[3] - arclengthTCS[0]) + arclengthTCS[0];
+	float arclength = mix(arclengthTCS[0], arclengthTCS[3], t) * abs(inv_alpha_ply);			//t * (arclengthTCS[3] - arclengthTCS[0]) + arclengthTCS[0];
 
 #ifdef USE_CATMULLROM
 	vec4 c1 =							 M12*gl_in[1].gl_Position;

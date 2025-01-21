@@ -57,14 +57,14 @@ namespace ks
 		
 	public:
 		float l, r, b, t, z_near, z_far;
-		ProjectionCamera() : fov(40), aspect(1), znear(0.02f), zfar(150.0f), l(-2), r(2), b(-0.5), t(0.5), z_near(0), z_far(512.f) {}
+		ProjectionCamera() : fov(20), aspect(1.5), znear(0.02f), zfar(150.0f), l(-12), r(12), b(-8), t(8), z_near(0), z_far(512.f) {}
 
 		void SetAspect(float asp) { aspect = asp; UpdateProjectionMatrix(); }
 
 	protected:
 		void ComputeProjectionMatrix() {
-			proj = SetPerspective(DEG2RAD(fov), aspect, znear, zfar);
-			//proj = SetOrtho_Camera(l, r, t, b, z_near,z_far);
+			//proj = SetPerspective(DEG2RAD(fov), aspect, znear, zfar);
+			proj = SetOrtho_Camera(l, r, t, b, z_near,z_far);
 		}
 	};
 
@@ -88,7 +88,7 @@ namespace ks
 
 		void SetTarget(const vec3& p) { target = p;	UpdateViewMatrix(); }
 		void AddRotation(float x, float y) { rot.x() += x; rot.y() += y;	UpdateViewMatrix(); }
-		void AddDistance(float d) { distance += d; distance = fmax(distance, 0.1f);			UpdateViewMatrix(); }
+		void AddDistance(float d) { distance += d; distance = fmax(distance, 0.1f);	l += d*1.5; r -= d*1.5; t -= d; b += d;		UpdateViewMatrix(); }
 		void SetDistance(float d) { distance = d; distance = fmax(distance, 0.1f);			UpdateViewMatrix(); }
 		float GetDistance() const { return distance; }
 		void AddHeight(float h) { height += h;			UpdateViewMatrix(); }

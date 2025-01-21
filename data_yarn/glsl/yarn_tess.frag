@@ -7,6 +7,7 @@
 //#define HIGH_PERFORMANCE
 
 layout(location = 0, index = 0) out vec4 color;
+layout(location = 1) out vec4 detail;
 
 in GEO_OUT
 {
@@ -35,6 +36,7 @@ uniform float d_f = 0.8;
 uniform float beta_diffuse = 0.902;
 uniform float d_f_inner = 0.8;
 uniform float d_cross_inter = 0.2;
+uniform vec3 adjust_color = vec3(1,1,1);
 
 float atan2(in float y, in float x)
 {
@@ -612,7 +614,7 @@ vec3 local_scattering(float Num_hair_trans, Frame frame_local, vec3 wi_, vec3 wd
 	return (direct_bounce + indirect_bounce) * cosThetaD;
 }
 
-uniform bool			use_ao;
+uniform bool			use_env;
 uniform bool			use_diffuse;
 uniform bool			use_specular;
 uniform bool			use_shadow;
@@ -634,7 +636,31 @@ uniform mat4			shadow_R_matrix;
 uniform sampler2D		shadow_R_tex;
 uniform sampler2D		core_tex;
 uniform sampler2D		fbr_dir_tex;
-uniform sampler2DShadow shadow_tex;
+uniform sampler2D shadow_tex;
+
+uniform sampler2D env_shadow_tex_1;
+uniform sampler2D env_shadow_tex_2;
+uniform sampler2D env_shadow_tex_3;
+uniform sampler2D env_shadow_tex_4;
+uniform sampler2D env_shadow_tex_5;
+uniform sampler2D env_shadow_tex_6;
+uniform sampler2D env_shadow_tex_7;
+uniform sampler2D env_shadow_tex_8;
+uniform sampler2D env_shadow_tex_9;
+uniform sampler2D env_shadow_tex_10;
+uniform sampler2D env_shadow_tex_11;
+uniform sampler2D env_shadow_tex_12;
+uniform sampler2D env_shadow_tex_13;
+uniform sampler2D env_shadow_tex_14;
+uniform sampler2D env_shadow_tex_15;
+uniform sampler2D env_shadow_tex_16;
+
+uniform sampler2D integral_tex;
+
+uniform vec3 envlight_dirs[16];
+uniform mat4 envshadow_matrixs[16];
+uniform float env_intensity[16];
+uniform float env_lambdas[16];
 
 uniform sampler3D		Core_AO_tex;
 //---------------------------------       azimuthal Core AO ---------------------------------
@@ -685,10 +711,11 @@ vec3 gammaCorrection (vec3 colour, float gamma) {
 
 float angleBetween(vec3 v1, vec3 v2, vec3 t) {
 	
-    vec3 v1_proj = v1 - dot(v1, t) * t;
-    vec3 v2_proj = v2 - dot(v2, t) * t;
+    vec3 v1_proj = normalize(v1 - dot(v1, t) * t);
+    vec3 v2_proj = normalize(v2 - dot(v2, t) * t);
     float dotProduct = dot(v1_proj, v2_proj);
-
+	if(dotProduct>0.999) return 0.0;
+	if(dotProduct<-0.999) return M_PI;
     float angle = acos(dotProduct);
     
     vec3 cross_product = cross(v1_proj, v2_proj);
@@ -717,6 +744,7 @@ vec4 getAOTexture(sampler2D AO0, sampler2D AO1, sampler2D AO2, sampler2D AO3,
                   vec2 uv, float angle) {
     float segment = angle * 8.0;
     int index = int(floor(segment)); // 计算当前使用的 AO 纹理对的下标
+	index = index % 8;
     float mixFactor = fract(segment); // 线性插值因子
     
     vec4 color;
@@ -747,6 +775,7 @@ vec4 getAOTexture_Long(sampler2D AO0, sampler2D AO1, sampler2D AO2, sampler2D AO
                   vec2 uv, float angle) {
     float segment = angle * 8.0;
     int index = int(floor(segment)); // 计算当前使用的 AO 纹理对的下标
+	index = index % 8;
     float mixFactor = fract(segment); // 线性插值因子
     
     vec4 color;
@@ -772,17 +801,57 @@ vec4 getAOTexture_Long(sampler2D AO0, sampler2D AO1, sampler2D AO2, sampler2D AO
     return color;
 }
 
-float PCF(vec4 shadow_tex_coords, sampler2DShadow shadow_tex, int kernel_size, float texel_size) {
-    float shadow = 0.0;
+#define lightSize 5
+float PCSS(vec4 shadow_tex_coords, sampler2D shadow_tex, int kernel_size, float texel_size) {
+	float shadow = 0.0;
     int half_kernel = kernel_size / 2;
-    for (int x = -half_kernel; x <= half_kernel; ++x) {
+	float blockerDepth = 0;
+    int numBlockers = 0;
+	for (int x = -half_kernel; x <= half_kernel; ++x) {
         for (int y = -half_kernel; y <= half_kernel; ++y) {
             vec4 offset_coords = shadow_tex_coords;
-            offset_coords.xy += vec2(x, y) * shadow_tex_coords.w * texel_size;
-            shadow += textureProj(shadow_tex, offset_coords).r;
+            offset_coords.xy += vec2(x, y) * texel_size;
+			float depth_closest = texture(shadow_tex, offset_coords.xy).x;
+			if((depth_closest <= offset_coords.z)){
+			  numBlockers += 1;	
+			  blockerDepth +=depth_closest;
+		    }
         }
     }
-    return shadow / (kernel_size * kernel_size);
+
+    //if (numBlockers == 0) return .0; // 没有遮挡点，无阴影
+    blockerDepth /= float(numBlockers); // 平均遮挡深度
+
+	float currentDepth = shadow_tex_coords.z;
+
+    float penumbraSize = (currentDepth - blockerDepth) / blockerDepth * lightSize;
+
+	penumbraSize = 1;
+    // 计算阴影模糊
+    const int numPCFSamples = 49; // PCF 采样数量
+    for (int x = -3; x <= 3; ++x) {
+        for (int y = -3; y <= 3; ++y) {
+            vec2 offset = vec2(x, y) * texel_size;
+            shadow += texture(shadow_tex, shadow_tex_coords.xy + offset).r >= currentDepth ? 1.0 : 0.0;
+        }
+    }
+
+    return shadow / numPCFSamples;
+}
+
+
+float PCF(vec4 shadow_tex_coords, sampler2D shadow_tex, int kernel_size, float texel_size) {
+	float shadow = 0.0;
+	float currentDepth = shadow_tex_coords.z;
+    const int numPCFSamples = 49; // PCF 采样数量
+    for (int x = -3; x <= 3; ++x) {
+        for (int y = -3; y <= 3; ++y) {
+            vec2 offset = vec2(x, y) * texel_size;
+            shadow += texture(shadow_tex, shadow_tex_coords.xy + offset).r >= currentDepth ? 1.0 : 0.0;
+        }
+    }
+
+    return shadow / numPCFSamples;
 }
 
 float curve_up_exponential(float x) {
@@ -790,234 +859,381 @@ float curve_up_exponential(float x) {
     return 1.0 - exp(-factor * x);
 }
 
-#define SHADOW_BIAS 0.00002f      
+#define SHADOW_BIAS 0.0001f   
+
+vec3 fetch4DTexture(int invlambda, int cosphi, int costhetaI, int costhetaO){
+ 	int scale = 16; // 每个维度分块大小为16
+    
+    // 计算纹理空间的实际坐标
+    int x = invlambda * scale + costhetaI;
+    int y = cosphi * scale + costhetaO;
+
+    // 提取整数部分和小数部分
+    ivec2 base = ivec2(x, y);
+
+    // 读取相邻像素的值
+    vec4 c = texelFetch(integral_tex, base, 0); // 左下角值
+	return c.xyz; 
+}
+
+vec3 sample4DTexture(float invlambda, float cosphi, float costhetaI, float costhetaO) {
+    float t_invlambda = fract(invlambda);
+	int invlambda_0 = clamp(int(floor(invlambda)),0,63); 
+	int invlambda_1 = clamp(invlambda_0+1,0,63); 
+
+    float t_cosphi = fract(cosphi);
+	int cosphi_0 = clamp(int(floor(cosphi)),0,15); 
+	int cosphi_1 = clamp(invlambda_0+1,0,15); 
+
+    float t_costhetaI = fract(costhetaI);
+	int costhetaI_0 = clamp(int(floor(costhetaI)),0,15); 
+	int costhetaI_1 = clamp(costhetaI_0+1,0,15); 
+
+    float t_costhetaO = fract(costhetaO);
+	int costhetaO_0 = clamp(int(floor(costhetaO)),0,15); 
+	int costhetaO_1 = clamp(costhetaO_0+1,0,15); 
+
+	vec3 c0000 = fetch4DTexture(invlambda_0, cosphi_0, costhetaI_0, costhetaO_0);
+	return c0000;
+	vec3 c1000 = fetch4DTexture(invlambda_1, cosphi_0, costhetaI_0, costhetaO_0);
+	vec3 c0100 = fetch4DTexture(invlambda_0, cosphi_1, costhetaI_0, costhetaO_0);
+	vec3 c0010 = fetch4DTexture(invlambda_0, cosphi_0, costhetaI_1, costhetaO_0);
+	vec3 c0001 = fetch4DTexture(invlambda_0, cosphi_0, costhetaI_0, costhetaO_1);
+	vec3 c1100 = fetch4DTexture(invlambda_1, cosphi_1, costhetaI_0, costhetaO_0);
+	vec3 c0110 = fetch4DTexture(invlambda_0, cosphi_1, costhetaI_1, costhetaO_0);
+	vec3 c0011 = fetch4DTexture(invlambda_0, cosphi_0, costhetaI_1, costhetaO_1);
+	vec3 c0101 = fetch4DTexture(invlambda_0, cosphi_1, costhetaI_0, costhetaO_1);
+	vec3 c1010 = fetch4DTexture(invlambda_1, cosphi_0, costhetaI_1, costhetaO_0);
+	vec3 c1001 = fetch4DTexture(invlambda_1, cosphi_0, costhetaI_0, costhetaO_1);
+	vec3 c1110 = fetch4DTexture(invlambda_1, cosphi_1, costhetaI_1, costhetaO_0);
+	vec3 c1101 = fetch4DTexture(invlambda_1, cosphi_1, costhetaI_0, costhetaO_1);
+	vec3 c1011 = fetch4DTexture(invlambda_1, cosphi_0, costhetaI_1, costhetaO_1);
+	vec3 c0111 = fetch4DTexture(invlambda_0, cosphi_1, costhetaI_1, costhetaO_1);
+	vec3 c1111 = fetch4DTexture(invlambda_1, cosphi_1, costhetaI_1, costhetaO_1);
+
+	vec3 cX000 = mix(c0000, c1000, t_invlambda);
+	vec3 cX001 = mix(c0001, c1001, t_invlambda);
+	vec3 cX010 = mix(c0010, c1010, t_invlambda);
+	vec3 cX011 = mix(c0011, c1011, t_invlambda);
+	vec3 cX100 = mix(c0100, c1100, t_invlambda);
+	vec3 cX101 = mix(c0101, c1101, t_invlambda);
+	vec3 cX110 = mix(c0110, c1110, t_invlambda);
+	vec3 cX111 = mix(c0111, c1111, t_invlambda);
+	 
+	vec3 cXX00 = mix(cX000, cX100, t_cosphi);
+	vec3 cXX01 = mix(cX001, cX101, t_cosphi);
+	vec3 cXX10 = mix(cX010, cX110, t_cosphi);
+	vec3 cXX11 = mix(cX011, cX111, t_cosphi);
+
+	vec3 cXXX0 = mix(cXX00, cXX10, t_costhetaI);
+	vec3 cXXX1 = mix(cXX01, cXX11, t_costhetaI);
+
+	vec3 c = mix(cXXX0, cXXX1, t_costhetaO);
+    return c;
+}
+
+float shadowCalc(vec4 world_pos, int i, int kernel_size, float texel_size){
+	float global_shadow_scale;
+	if(i==-1){
+		vec4 world_pos_here	= shadow_matrix * world_pos;
+		world_pos_here.z -= SHADOW_BIAS;
+		global_shadow_scale = PCF(world_pos_here, shadow_tex, kernel_size, texel_size);
+	}
+	else{
+		vec4 world_pos_here	= envshadow_matrixs[i] * world_pos;
+		world_pos_here.z -= SHADOW_BIAS;
+		if (i == 0) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_1, kernel_size, texel_size);
+		if (i == 1) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_2, kernel_size, texel_size);
+		if (i == 2) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_3, kernel_size, texel_size);
+		if (i == 3) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_4, kernel_size, texel_size);
+		if (i == 4) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_5, kernel_size, texel_size);
+		if (i == 5) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_6, kernel_size, texel_size);
+		if (i == 6) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_7, kernel_size, texel_size);
+		if (i == 7) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_8, kernel_size, texel_size);
+		if (i == 8) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_9, kernel_size, texel_size);
+		if (i == 9) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_10, kernel_size, texel_size);
+		if (i == 10) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_11, kernel_size, texel_size);
+		if (i == 11) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_12, kernel_size, texel_size);
+		if (i == 12) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_13, kernel_size, texel_size);
+		if (i == 13) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_14, kernel_size, texel_size);
+		if (i == 14) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_15, kernel_size, texel_size);
+		if (i == 15) global_shadow_scale = PCSS(world_pos_here, env_shadow_tex_16, kernel_size, texel_size);
+	}
+	return global_shadow_scale;
+}
 
 void main()
 {
-	mat4 camera_matrix_inverse = inverse(camera_matrix);
-
-
-	// fetch texture
+	// fetch fiber geometry details texture
 	vec4 tex_value = texture(core_tex, fs_in.uv);
 	vec4 tangent_tex_value = texture(fbr_dir_tex, fs_in.uv);
 	vec3 tangent_local = normalize( tangent_tex_value.xyz * 2.0f - vec3(1));
 	float alpha_T = tangent_tex_value.w;
 
-	if (tex_value.w < 0.5)	discard;
+	color = vec4(0,0,0,1);
+	if(use_env){
+		mat4 camera_matrix_inverse = inverse(camera_matrix);
+		if (tex_value.w < 0.5)	discard;
+		// view direction - view space
+		vec4 V4 = camera_matrix * vec4(fs_in.center_3d,1);
+		V = -normalize( V4.xyz );
 
-	// light direction - world space
-	L = normalize(light_dir);
+		// view direction - world space
+		vec4 camera_pos_world = camera_matrix_inverse * vec4(0,0,0,1);
+		camera_pos_world = camera_pos_world / camera_pos_world.w;
+		vec3 wi1 = normalize(camera_pos_world.xyz - fs_in.center_3d);
 
-	// view direction - view space
-	vec4 V4 = camera_matrix * vec4(fs_in.center_3d,1);
-	V = -normalize( V4.xyz );
+		mat3 cm = mat3(camera_matrix);
+		mat3 cm_inverse = inverse(cm);
+		T_v = normalize( cm * fs_in.fbr_dir_3d );			// fiber direction
+		N_v = normalize( tex_value.xyz * 2.0f - vec3(1));
+		vec3 norm_e = normalize(vec3(-T_v.y, T_v.x, 0));	//cross(z, T_v);  
+		vec3 norm_V = normalize(cross(norm_e, T_v));  
+		vec3 face_normal = normalize(cross(normalize(cross(fs_in.fbr_dir_3d, wi1)), fs_in.fbr_dir_3d));
+		N_v = normalize(N_v.x *T_v + N_v.y * norm_e - N_v.z * norm_V);
+		vec4 N_world_v4 = camera_matrix_inverse * vec4(N_v, 1.0);
+		vec3 N_world = N_world_v4.xyz / N_world_v4.w;
+		N_world = normalize(cm_inverse * N_v);
 
-	// view direction - world space
-	vec4 camera_pos_world = camera_matrix_inverse * vec4(0,0,0,1);
-	camera_pos_world = camera_pos_world / camera_pos_world.w;
-	vec3 wi1 = normalize(camera_pos_world.xyz - fs_in.center_3d);
-	wi1 =vec3(0,0,1);
-
-	///----------------------------------------------------------------------
-	// diffuse - view space
-	///----------------------------------------------------------------------
-	mat3 cm = mat3(camera_matrix);
-	mat3 cm_inverse = inverse(cm);
-	T_v = normalize( cm * fs_in.fbr_dir_3d );			// fiber direction
-	L_v = normalize( cm * L );
-
-	N_v = normalize( tex_value.xyz * 2.0f - vec3(1));
-	vec3 norm_e = normalize(vec3(-T_v.y, T_v.x, 0));	//cross(z, T_v);  
-	vec3 norm_V = normalize(cross(norm_e, T_v));  
-
-	//get the angle between L_v and norm_V
-	vec3 L_azi = normalize(L - dot(fs_in.fbr_dir_3d, L) * fs_in.fbr_dir_3d);
-	vec3 face_normal = normalize(cross(normalize(cross(fs_in.fbr_dir_3d, wi1)), fs_in.fbr_dir_3d));
-	float angle = (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));
-
-	//vec3 L_long = normalize(L_v - dot(norm_V, L_v) * norm_V);
-	float angle_long = 1 - (angleBetween_long(L, fs_in.fbr_dir_3d) / (M_PI));
-
-	vec3 self_coreAO_Azi_value = getAOTexture(Core_AO0_tex, Core_AO1_tex, Core_AO2_tex, Core_AO3_tex,
-                  Core_AO4_tex, Core_AO5_tex, Core_AO6_tex, Core_AO7_tex,
-                  fs_in.uv, angle).xyz;
-	self_coreAO_Azi_value = gammaCorrection(self_coreAO_Azi_value, 1.0) * 2;
-
-	vec3 self_coreAO_Long_value = getAOTexture_Long(Core_AO0_tex_Long, Core_AO1_tex_Long, Core_AO2_tex_Long, Core_AO3_tex_Long,
-                  Core_AO4_tex_Long, Core_AO5_tex_Long, Core_AO6_tex_Long, Core_AO7_tex_Long, Core_AO8_tex_Long,
-                  fs_in.uv, angle_long).xyz;
-	self_coreAO_Long_value =  gammaCorrection(self_coreAO_Long_value, 1.0) * 2;
-
-	N_v = normalize(N_v.x *T_v + N_v.y * norm_e - N_v.z * norm_V);
-	vec4 N_world_v4 = camera_matrix_inverse * vec4(N_v, 1.0);
-	vec3 N_world = N_world_v4.xyz / N_world_v4.w;
-	N_world = normalize(cm_inverse * N_v);
-
-	T_v = normalize(tangent_local.x * T_v + tangent_local.y * norm_e - tangent_local.z * norm_V);
-	vec3 T_world = normalize(cm_inverse * T_v);
-	diffuse = max(dot(N_v, L_v), 0.0);
-	
-	///----------------------------------------------------------------------
-	// specular
-	///----------------------------------------------------------------------
-	vec3 L_prime = normalize( L_v - dot(L_v, T_v) );
-	vec3 V_prime = normalize( V - dot(V, T_v) );
-	/*
-	float a = acos(dot(-L_v, T_v)) - acos(dot(V, T_v));
-	float M = exp(- a * a * 0.5 / lamda_R / lamda_R) / sqrt(M_PI_2) / lamda_R;
-	specular = max(k_R * M * dot(L_prime, V_prime), 0.0);
-	*/
-
-	float phi = acos(dot(L_prime, V_prime));
-	float theta_h = ( acos(dot(L_v, T_v)) + acos(dot(V, T_v)) ) * 0.5 - 1.57;
-	specular = max(k_R * cos(phi * 0.5) * exp(- theta_h * theta_h * 0.5 / (lamda_R * lamda_R) ), 0.0);
-
-
-#ifdef KAJIYA_KAY
-	float c = dot(T_v, L_v);
-	float s = sqrt(1 - c * c);
-	vec3 H = normalize(V + L_v);
-	float sc = dot(T_v, H);
-	float ss = sqrt(1 - sc * sc);
-	diffuse = s;
-	specular = s * pow(ss, 38.0) * 0.6;
-#endif
-
-///----------------------------- Ref_bcsdf ---------------------------------
-	//T_world = fs_in.fbr_dir_3d;
-	vec3 light_dir1 = normalize(light_dir);
-	vec3 bitangent = normalize(cross(T_world, N_world));
-	Frame frame_local;
-	frame_local.t = bitangent;
-	frame_local.b = normalize(T_world);
-	frame_local.n = normalize(N_world);
-
-///----------------------------------------------------------------------------
-
-	///----------------------------------------------------------------------
-	//	global shadow
-	///----------------------------------------------------------------------
-	
-	// 使用 PCF 的版本
-	float texel_size = 1.0 / textureSize(shadow_tex, 0).x;  // 假设方形纹理
-	int kernel_size = 7;  // 3x3 的核
-	vec4 real_world_pos = fs_in.world_pos;
-	real_world_pos.xyz += fs_in.fiber_thickness * abs(0.5 - fs_in.uv.y) * light_dir1;
-	vec4 world_pos_here;
-	world_pos_here	= shadow_matrix * real_world_pos;
-
-	world_pos_here.z -= SHADOW_BIAS;
-
-	float global_shadow_scale = PCF(world_pos_here, shadow_tex, kernel_size, texel_size);
-
-
-	///----------------------------------------------------------------------
-	//	global scattering
-	///----------------------------------------------------------------------
-	//forward_trans
-	vec3 one_trans;
-	vec3 one_var;
-	{
-		vec3 wd_ = light_dir1;
-		vec3 wd = to_local(frame_local, wd_);
-		vec3 wi = to_local(frame_local, wi1);
-		vec3 a_B_fiber;
-		vec3 a_F_fiber;
-		vec3 a_R;
-		vec3 a_D;
-		vec3 _beta_avg;
-		vec3 _beta_avg_N;
-		vec3 _beta_avg_backward;
-		vec3 b = vec3(0, 1, 0);
-		vec3 ng = vec3(0, 0, 1);
-		vec3 t = normalize(cross(b, ng));
-		Frame fiber_frame;
-		fiber_frame.t = t;
-		fiber_frame.b = b;
-		fiber_frame.n = ng;
-		vec3 wd_fiber = to_local(frame_local, wd);
+		T_v = normalize(tangent_local.x * T_v + tangent_local.y * norm_e - tangent_local.z * norm_V);
+		vec3 T_world = normalize(cm_inverse * T_v);
+		vec3 bitangent = normalize(cross(T_world, N_world));
+		Frame frame_local;
+		frame_local.t = bitangent;
+		frame_local.b = normalize(T_world);
+		frame_local.n = normalize(N_world);
+		vec3 view_dir_local = to_local(frame_local, wi1);
+		
+		for(int i=0;i<4;i++)
 		{
-			float sinThetaI = wd_fiber.y;
-			float thetaI = asin(clamp(sinThetaI, -1.0f, 1.0f));
-			vec3 AFR = getAlphaForward_Single(thetaI, 0, 0);
-			vec3 AFTT = getAlphaForward_Single(thetaI, 0, 1);
-			vec3 AFD = getAlphaForward_Single(thetaI, 0, 2);
-			vec3 ABR = getAlphaBackward_Single(thetaI, 0, 0);
-			vec3 ABTT = getAlphaBackward_Single(thetaI, 0, 1);
-			vec3 ABD = getAlphaBackward_Single(thetaI, 0, 2);
-			a_B_fiber = ABR + ABTT + ABD;
-			a_F_fiber = AFR + AFTT + AFD;
-			a_D = AFD + ABD;
-			a_R = AFR + ABR;
+			vec3 light_dir_cur = envlight_dirs[i];
+			float intensity = env_intensity[i];
 
-			//  for beta_avg
-			_beta_avg = (vec3(AFR) * betaR + vec3(AFTT) * betaTT +
-				vec3(AFD) * beta_diffuse) /
-				(vec3(AFR) + vec3(AFTT) + vec3(AFD));
-			_beta_avg_backward = (vec3(ABR) * betaR + vec3(ABTT) * betaTT +
-				vec3(ABD) * beta_diffuse) /
-				(vec3(ABR) + vec3(ABTT) + vec3(ABD));
-			_beta_avg_N =
-				(vec3(AFR) * beta_diffuse + vec3(AFTT) * betaN + vec3(AFD) * beta_diffuse) /
-				(vec3(AFR) + vec3(AFTT) + vec3(AFD));
-			_beta_avg *= _beta_avg;
-			_beta_avg_backward *= _beta_avg_backward;
-			_beta_avg_N *= _beta_avg_N;       //std::cout << " thetaI_fiber is "  << thetaI_fiber << std::endl;
+			//if(intensity < 2) intensity = 0;
+			
 
-			one_trans = (AFR + AFTT + AFD);
+			// light direction - world space
+			L = normalize(light_dir_cur);
 
-			// variance of forward scattering = sum of avg variance of each event
+			///----------------------------------------------------------------------
+			// diffuse - view space
+			///----------------------------------------------------------------------
+			L_v = normalize( cm * L );
 
-			one_var = (AFR * betaR + AFTT * betaTT +
-				AFD * beta_diffuse) /
-				one_trans;
-			one_var *= one_var;
+			//get the angle between L_v and norm_V
+			vec3 L_azi = normalize(L - dot(fs_in.fbr_dir_3d, L) * fs_in.fbr_dir_3d);
+			float angle = (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));
+
+			//vec3 L_long = normalize(L_v - dot(norm_V, L_v) * norm_V);
+			float angle_long = 1 - (angleBetween_long(L, fs_in.fbr_dir_3d) / (M_PI));
+
+			vec3 self_coreAO_Azi_value = getAOTexture(Core_AO0_tex, Core_AO1_tex, Core_AO2_tex, Core_AO3_tex,
+						Core_AO4_tex, Core_AO5_tex, Core_AO6_tex, Core_AO7_tex,
+						fs_in.uv, angle).xyz;
+		    self_coreAO_Azi_value = gammaCorrection(self_coreAO_Azi_value, (1.)) * 2;
+
+			float self_coreAO_Long_value = getAOTexture_Long(Core_AO0_tex_Long, Core_AO1_tex_Long, Core_AO2_tex_Long, Core_AO3_tex_Long,
+						Core_AO4_tex_Long, Core_AO5_tex_Long, Core_AO6_tex_Long, Core_AO7_tex_Long, Core_AO8_tex_Long,
+						fs_in.uv, angle_long).x;
+			self_coreAO_Long_value =  pow(self_coreAO_Long_value, (1.)) * 2;
+
+		///----------------------------- Ref_bcsdf ---------------------------------
+			//T_world = fs_in.fbr_dir_3d;
+			vec3 light_dir1 = normalize(light_dir_cur);
+			vec3 light_dir_local = to_local(frame_local, light_dir1);
+			vec3 fcolor;
+			{
+				float sinThetaI = light_dir_local.y;
+				float sinThetaO = view_dir_local.y;
+				float cosThetaD = trigInverse(sinThetaO);
+				float thetaI = asin(clamp(sinThetaI, -1.0f, 1.0f));
+				float thetaO = asin(clamp(sinThetaO, -1.0f, 1.0f)); 
+				thetaI += 0.5 * M_PI;
+				thetaO += 0.5 * M_PI;
+				float costhetaI = cos(thetaI);
+				costhetaI = (costhetaI + 1.f) * 8;
+				costhetaI = clamp(costhetaI, 0, 15);
+
+				float costhetaO = cos(thetaO);
+				costhetaO = (costhetaO + 1.f) * 8;
+				
+				float phi_I = atan(light_dir_local.x, light_dir_local.z);
+				float phi_O = atan(view_dir_local.x, view_dir_local.z);
+				float cosphi = cos(phi_I - phi_O);
+				cosphi = (cosphi + 1.f)*8;
+				
+				float invlambda = 1 / env_lambdas[i]; 
+				invlambda = invlambda * 64 - 1;
+				
+				fcolor = sample4DTexture(invlambda, cosphi, costhetaI, costhetaO);
+				fcolor = gammaCorrection(fcolor, 1.0) * cosThetaD;
+			}
+
+			///----------------------------------------------------------------------
+			//	global shadow
+			///----------------------------------------------------------------------
+			
+			// 使用 PCF 的版本
+			float texel_size = 1.0 / textureSize(shadow_tex, 0).x;  // 假设方形纹理
+			int kernel_size = 7;  // 3x3 的核
+			vec4 real_world_pos = fs_in.world_pos;
+			real_world_pos.xyz += fs_in.fiber_thickness * abs(0.5 - fs_in.uv.y) * wi1;
+			
+			float global_shadow_scale = shadowCalc(real_world_pos, i, kernel_size, texel_size);
+			
+			bool direct = true;
+			vec3 trans = vec3(1,1,1);
+			vec3 var = vec3(0,0,0);
+
+			// finalize
+			float fiber_frans_inside =1.f;
+			float geo_unitless_density = 1.f;
+			direct = true;
+			
+			if(env_lambdas[i]<3)
+			fcolor = local_scattering(0.f, frame_local, wi1, light_dir1, fiber_frans_inside, geo_unitless_density, trans, var, direct);
+			
+			vec3 self_coreAO_value = self_coreAO_Long_value * self_coreAO_Azi_value;
+			self_coreAO_value = vec3(self_coreAO_Azi_value);
+
+			//global_shadow_scale = 1.0;
+			fcolor = fcolor* self_coreAO_value * global_shadow_scale * intensity * adjust_color;
+			//fcolor = vec3(global_shadow_scale);
+			//fcolor = fcolor* self_coreAO_value * intensity * adjust_color;
+		
+			//float angle = 1 - (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));	
+			color.xyz += fcolor;
 		}
-	}		
+	} else{
+		vec3 light_dir_cur = light_dir;
+		float intensity = 5;
+		mat4 camera_matrix_inverse = inverse(camera_matrix);
 
-	bool direct = true;
-	vec3 trans = vec3(0,0,0);
-	vec3 var = vec3(0,0,0);
+		if (tex_value.w < 0.5)	discard;
 
-	///----------------------------------------------------------------------
-	//	KAJIYA_KAY
-	///----------------------------------------------------------------------
-	vec3 color_c = default_color;
+		// light direction - world space
+		L = normalize(light_dir_cur);
 
-	///----------------------------------------------------------------------
-	// DISABLE HERE TO BE FASTER !!!
-	//*
-#ifndef HIGH_PERFORMANCE
-	if(!use_diffuse) diffuse = 1.0f;
-	if(!use_shadow) global_shadow_scale = 1.0f;
-	if(!use_specular) specular = 0.0;
-	if(use_lod_vis) color_c = fs_in.lod_color;
-#endif
-	//*/
+		// view direction - view space
+		vec4 V4 = camera_matrix * vec4(fs_in.center_3d,1);
+		V = -normalize( V4.xyz );
 
-	// finalize
-	float fiber_frans_inside =1.f;
-	float geo_unitless_density = 1.f;
-	direct = true;
-	vec3 fcolor = local_scattering(0.f, frame_local, wi1, light_dir1, fiber_frans_inside, geo_unitless_density, trans, var, direct) * vec3(8,8,8);
+		// view direction - world space
+		vec4 camera_pos_world = camera_matrix_inverse * vec4(0,0,0,1);
+		camera_pos_world = camera_pos_world / camera_pos_world.w;
+		vec3 wi1 = normalize(camera_pos_world.xyz - fs_in.center_3d);
+		//wi1 =vec3(0,0,1);
 
-	vec3 self_coreAO_value = self_coreAO_Long_value * self_coreAO_Azi_value;
-	//self_coreAO_value = self_coreAO_Azi_value;
+		///----------------------------------------------------------------------
+		// diffuse - view space
+		///----------------------------------------------------------------------
+		mat3 cm = mat3(camera_matrix);
+		mat3 cm_inverse = inverse(cm);
+		T_v = normalize( cm * fs_in.fbr_dir_3d );			// fiber direction
+		L_v = normalize( cm * L );
 
-	color.xyz = fcolor * self_coreAO_value * global_shadow_scale * 0.8 + AD  * 0.2;
-	color.xyz = fcolor * self_coreAO_value * global_shadow_scale * 0.8 + AD  * self_coreAO_value * 0.2;
-	color.xyz = fcolor * self_coreAO_value * global_shadow_scale * 0.7 + AD  * self_coreAO_value * 0.3;
-	color.xyz = vec3(self_coreAO_value);
-	color.xyz = fcolor * self_coreAO_value * global_shadow_scale * mDelta_1 + AD  * self_coreAO_value * (1-mDelta_1);
-	vec3 M_D_G =
-		vec3(1.0f / M_PI, 1.0f / M_PI, 1.0f / M_PI) * (AD); // forward half should be included in f Lobe
-	
-	vec3 N_D_G = vec3(0.5f / M_PI, 0.5f / M_PI, 0.5f / M_PI);
-	vec3 D = M_D_G * N_D_G;
-	color.xyz = fcolor * self_coreAO_value * global_shadow_scale * mDelta_1;
-	//float angle = 1 - (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));	
+		N_v = normalize( tex_value.xyz * 2.0f - vec3(1));
+		vec3 norm_e = normalize(vec3(-T_v.y, T_v.x, 0));	//cross(z, T_v);  
+		vec3 norm_V = normalize(cross(norm_e, T_v));  
+
+		//get the angle between L_v and norm_V
+		vec3 L_azi = normalize(L - dot(fs_in.fbr_dir_3d, L) * fs_in.fbr_dir_3d);
+		vec3 face_normal = normalize(cross(normalize(cross(fs_in.fbr_dir_3d, wi1)), fs_in.fbr_dir_3d));
+		float angle = (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));
+		angle = angle + mDelta_1;
+		
+		//vec3 L_long = normalize(L_v - dot(norm_V, L_v) * norm_V);
+		float angle_long = 1 - (angleBetween_long(L, fs_in.fbr_dir_3d) / (M_PI));
+
+		vec3 self_coreAO_Azi_value = getAOTexture(Core_AO0_tex, Core_AO1_tex, Core_AO2_tex, Core_AO3_tex,
+					Core_AO4_tex, Core_AO5_tex, Core_AO6_tex, Core_AO7_tex,
+					fs_in.uv, angle).xyz;
+		self_coreAO_Azi_value = gammaCorrection(self_coreAO_Azi_value, (1. / 1)) * 2;
+
+		float self_coreAO_Long_value = getAOTexture_Long(Core_AO0_tex_Long, Core_AO1_tex_Long, Core_AO2_tex_Long, Core_AO3_tex_Long,
+					Core_AO4_tex_Long, Core_AO5_tex_Long, Core_AO6_tex_Long, Core_AO7_tex_Long, Core_AO8_tex_Long,
+					fs_in.uv, angle_long).x;
+		self_coreAO_Long_value =  pow(self_coreAO_Long_value, (1. / 1)) * 2;
+
+		N_v = normalize(N_v.x *T_v + N_v.y * norm_e - N_v.z * norm_V);
+		vec4 N_world_v4 = camera_matrix_inverse * vec4(N_v, 1.0);
+		vec3 N_world = N_world_v4.xyz / N_world_v4.w;
+		N_world = normalize(cm_inverse * N_v);
+
+		T_v = normalize(tangent_local.x * T_v + tangent_local.y * norm_e - tangent_local.z * norm_V);
+		vec3 T_world = normalize(cm_inverse * T_v);
+		diffuse = max(dot(N_v, L_v), 0.0);
+		
+		///----------------------------------------------------------------------
+		// specular
+		///----------------------------------------------------------------------
+		vec3 L_prime = normalize( L_v - dot(L_v, T_v) );
+		vec3 V_prime = normalize( V - dot(V, T_v) );
+		/*
+		float a = acos(dot(-L_v, T_v)) - acos(dot(V, T_v));
+		float M = exp(- a * a * 0.5 / lamda_R / lamda_R) / sqrt(M_PI_2) / lamda_R;
+		specular = max(k_R * M * dot(L_prime, V_prime), 0.0);
+		*/
+
+		float phi = acos(dot(L_prime, V_prime));
+		float theta_h = ( acos(dot(L_v, T_v)) + acos(dot(V, T_v)) ) * 0.5 - 1.57;
+		specular = max(k_R * cos(phi * 0.5) * exp(- theta_h * theta_h * 0.5 / (lamda_R * lamda_R) ), 0.0);
+
+
+	#ifdef KAJIYA_KAY
+		float c = dot(T_v, L_v);
+		float s = sqrt(1 - c * c);
+		vec3 H = normalize(V + L_v);
+		float sc = dot(T_v, H);
+		float ss = sqrt(1 - sc * sc);
+		diffuse = s;
+		specular = s * pow(ss, 38.0) * 0.6;
+	#endif
+
+	///----------------------------- Ref_bcsdf ---------------------------------
+		//T_world = fs_in.fbr_dir_3d;
+		vec3 light_dir1 = normalize(light_dir_cur);
+		vec3 bitangent = normalize(cross(T_world, N_world));
+		Frame frame_local;
+		frame_local.t = bitangent;
+		frame_local.b = normalize(T_world);
+		frame_local.n = normalize(N_world);
+		vec3 light_dir_local = to_local(frame_local, light_dir1);
+		vec3 view_dir_local = to_local(frame_local, wi1);
+		vec3 fcolor;
+		///----------------------------------------------------------------------
+		//	global shadow
+		///----------------------------------------------------------------------
+		
+		// 使用 PCF 的版本
+		float texel_size = 1.0 / textureSize(shadow_tex, 0).x;  // 假设方形纹理
+		int kernel_size = 7;  // 3x3 的核
+		vec4 real_world_pos = fs_in.world_pos;
+		real_world_pos.xyz += fs_in.fiber_thickness * abs(0.5 - fs_in.uv.y) * wi1;
+		
+		float global_shadow_scale = shadowCalc(real_world_pos, -1, kernel_size, texel_size);
+		
+		bool direct = true;
+		vec3 trans = vec3(0,0,0);
+		vec3 var = vec3(0,0,0);
+
+		// finalize
+		float fiber_frans_inside =1.f;
+		float geo_unitless_density = 1.f;
+		direct = true;
+		fcolor = local_scattering(0.f, frame_local, wi1, light_dir1, fiber_frans_inside, geo_unitless_density, trans, var, direct);
+		
+		vec3 self_coreAO_value = self_coreAO_Long_value * self_coreAO_Azi_value;
+		self_coreAO_value = vec3(self_coreAO_Azi_value);
+
+		fcolor = fcolor * self_coreAO_value * global_shadow_scale * max(0.0, intensity) * adjust_color;
+		//float angle = 1 - (angleBetween(L_azi, face_normal, fs_in.fbr_dir_3d) / (M_PI_2));	
+		color.xyz += fcolor;
+		
+	}
 	color.xyz = gammaCorrection(color.xyz, 2.18);
 
 	//color.xyz = fs_in.lod_color;
 	color.a = 1.0;
 }
+	

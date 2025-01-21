@@ -5,7 +5,7 @@ layout(location = 1) in vec3 normal;
 
 uniform mat4 view_matrix;
 
-flat out vec3 vertex_normal;
+out vec3 vertex_normal;
 out vec3 posWorld;
 
 void main()

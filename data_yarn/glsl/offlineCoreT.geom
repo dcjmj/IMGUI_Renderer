@@ -24,13 +24,13 @@ vec2 GetWDif( vec2 sPos1, vec2 sPos2 )
 {
 	vec2 sDir  = normalize(sPos2 - sPos1);
 	vec2 sNorm = vec2( sDir.y, -sDir.x );
-	return fiber_thickness*sNorm*1.5;
+	return fiber_thickness*sNorm;
 }
 
 void main()
 {
 	vec2 width = GetWDif( (view_matrix * modelMatrix * (gl_in[0].gl_Position)).xy, (view_matrix * modelMatrix * (gl_in[1].gl_Position)).xy);
-	width = vec2(0, 0.004);
+	
 	vec3 fiberDir = (view_matrix * modelMatrix * gl_in[0].gl_Position - view_matrix * modelMatrix * gl_in[1].gl_Position).xyz;
 
 	fiberDir = normalize((gl_in[1].gl_Position - gl_in[0].gl_Position).xyz);
@@ -40,7 +40,6 @@ void main()
 
 	gl_Position = view_matrix * modelMatrix * (gl_in[0].gl_Position);// + vec4(0.5 * width, 0, 0));
 	gl_Position.xy += 0.5 * width;
-	gl_Position.z += 0.2;
 	geo_out.fiber_dir = fiberDir;
 	geo_out.pos = gl_Position;
 	geo_out.is_core = 0.0;
@@ -66,7 +65,6 @@ void main()
 	
 	gl_Position = view_matrix * modelMatrix * (gl_in[1].gl_Position);// + vec4(0.5 * width, 0, 0));
 	gl_Position.xy += 0.5 * width;
-	gl_Position.z += 0.2;
 	geo_out.fiber_dir = fiberDir;
 	geo_out.pos = gl_Position;
 	geo_out.uv = vec2(0.05, 321.0f/326.0f);

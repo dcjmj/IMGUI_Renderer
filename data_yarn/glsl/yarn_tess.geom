@@ -50,6 +50,7 @@ uniform bool use_regular_fiber;
 uniform mat4 view_matrix;
 uniform vec3 view_pos;
 uniform float mDelta_0;
+uniform float mDelta_2;
 
 vec3 GetWDif(vec3 sDir, vec3 view_dir)
 {
@@ -83,8 +84,8 @@ void main(void)
 			vec3 view_dir0 = normalize(view_pos - pos[0].xyz);
 			vec3 view_dir1 = normalize(view_pos - pos[1].xyz);
 
-			width[0]		= GetWDif( geo_in[0].core_dir, view_dir0 ) * geo_in[0].fiber_thickness;
-			width[1]		= GetWDif( geo_in[1].core_dir, view_dir1 ) * geo_in[1].fiber_thickness;
+			width[0]		= GetWDif( geo_in[0].core_dir, view_dir0 ) * geo_in[0].fiber_thickness / mDelta_2;
+			width[1]		= GetWDif( geo_in[1].core_dir, view_dir1 ) * geo_in[1].fiber_thickness / mDelta_2;
 
 			float one_over_core_texture_height = 1.0f / core_texture_height;
 

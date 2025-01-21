@@ -326,7 +326,7 @@ void main(void)
 		///----------------------------------------------
 		tes_out.fly_away		= false;
 		//tes_out.ply_shift		= arclength * (inv_alpha_ply - inv_alpha_fiber) - acos(dot(B, yarn_aAxis)) * M_PI_2_INV * 0.5f;		 	
-		tes_out.ply_shift = arclength;
+		tes_out.ply_shift = arclength * abs(inv_alpha_ply);
 	}
 	// regular fiber and fly-away fiber
 	else	

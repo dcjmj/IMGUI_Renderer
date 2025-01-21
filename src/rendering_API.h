@@ -26,8 +26,8 @@
 #define			ATTRIB_TEXTURE			1
 #define			ATTRIB_NORMAL			2
 #define			ATTRIB_COLOR			3
-#define			DEFAULT_WIDTH			1280//1920//1280
-#define			DEFAULT_HEIGHT			960//1080//960
+#define			DEFAULT_WIDTH			1920//1317//1317/1280//1920//1280
+#define			DEFAULT_HEIGHT			1280//1317/960/1080//960
 #define			CHECKER_BOARD_WIDTH		1024
 #define			CHECKER_BOARD_HEIGHT	1024
 #define			SHADOW_MAP_SIZE			4096
@@ -317,6 +317,8 @@ public:
 	void SetParam(unsigned int paramID, unsigned int x, unsigned int y) { glUniform2ui(params[paramID], x, y); }
 	void SetParam(unsigned int paramID, unsigned int x, unsigned int y, unsigned int z) { glUniform3ui(params[paramID], x, y, z); }
 	void SetParam(unsigned int paramID, unsigned int x, unsigned int y, unsigned int z, unsigned int w) { glUniform4ui(params[paramID], x, y, z, w); }
+	void SetParams(unsigned int paramID, unsigned int count, const float* m) { glUniform1fv(params[paramID], count, m); }
+	void SetParamsV3(unsigned int paramID, unsigned int count, const float* m) { glUniform3fv(params[paramID], count, m); }
 	void SetParamMatrix2(unsigned int paramID, const float* m) { glUniformMatrix2fv(params[paramID], 1, GL_FALSE, m); }
 	void SetParamMatrix2x3(unsigned int paramID, const float* m) { glUniformMatrix2x3fv(params[paramID], 1, GL_FALSE, m); }
 	void SetParamMatrix2x4(unsigned int paramID, const float* m) { glUniformMatrix2x4fv(params[paramID], 1, GL_FALSE, m); }
@@ -326,6 +328,7 @@ public:
 	void SetParamMatrix4x2(unsigned int paramID, const float* m) { glUniformMatrix4x2fv(params[paramID], 1, GL_FALSE, m); }
 	void SetParamMatrix4x3(unsigned int paramID, const float* m) { glUniformMatrix4x3fv(params[paramID], 1, GL_FALSE, m); }
 	void SetParamMatrix4(unsigned int paramID, const float* m) { glUniformMatrix4fv(params[paramID], 1, GL_FALSE, m); }
+	void SetParamsMatrix4(unsigned int paramID, unsigned int count, const float* m) { glUniformMatrix4fv(params[paramID], 16, GL_FALSE, m); }
 
 };
 
@@ -354,13 +357,17 @@ public:
 	void InitCoreAOTexture();
 	void InitCoreAOTexture_Long();
 	bool InitShaders();
-	void InitObject();
+	void InitObject(std::string filepath);
 	void UpdateShadowTexture();
 	void UpdateConfig2OfflineYarn(Fiber::Yarn* y);
 	void ReadFrameBuffer();
 	void CreateIndexBuffer(const ObjData& objData);
 	GLuint defaultFramebufferObject() const;
+	void LoadIntegration(char* filename);
+	void UpdateEnvShadowTexture();
+	void InitEnvShadowTextureBuffer();
 	void InitShadowTextureBuffer();
+	void createRandomTexture(int width, int height);
 
 	GLuint object_tri_num;
 
@@ -371,9 +378,31 @@ public:
 
 	GLuint cloth_vao;
 	GLuint cloth_ibo;
+	GLuint RandomTex;
+
+	std::vector<float> lambdas_final; // Initial lambda values
+	std::vector<ks::vec3> centers_final;
+	Eigen::VectorXf weights_final;
+	Eigen::VectorXf weights;
+	bool g_use_envmap = false;
+
 
 	GLuint WINDOW_WIDTH = DEFAULT_WIDTH;
 	GLuint WINDOW_HEIGHT = DEFAULT_HEIGHT;
+
+
+	int                                     g_integral_width;
+	int                                     g_integral_height;
+	int                                     g_integral_angle_res;
+	int                                     g_integral_lambda_res;
+
+	//env map shadow
+	GLuint          depth_fbo_env[16];
+	GLuint			depth_tex_env[16];
+	ks::mat4								light_proj_matrix_env[16];
+	ks::mat4								light_view_matrix_env[16];
+	ks::mat4								light_matrix_env[16];
+	ks::vec3 envlight_pos[16];
 
 	ks::vec4								lightPosCam4;
 	ks::mat4							    lightProjMatrix;
@@ -384,6 +413,8 @@ public:
 	ks::mat4								light_proj_matrix;
 	ks::mat4								light_view_matrix;
 	ks::mat4								camera_matrix_m4;
+	ks::vec3								adjust_color;
+	ks::vec3								residual_color[8];
 
 	ks::Camera								camera;
 	ks::vec3 center;
@@ -393,6 +424,7 @@ public:
 	//	QOpenGLFramebufferObject* depth_fbo;
 	GLuint          depth_tex;
 	GLuint          depth_debug_tex;
+	GLuint									IntegralTex;
 	std::vector<GLfloat> array_Vertex;
 	bool fiber_updated = true;
 
@@ -403,9 +435,9 @@ public:
 
 	//self AO texture
 	ks::vec3 AR = ks::vec3(0.15, 0.15, 0.15);
-	ks::vec3 AD = ks::vec3(0.09, 0.35, 0.135);
-	ks::vec3 ATT = ks::vec3(0.15, 0.3, 0.21);
-	float betaR = 0.6;
+	ks::vec3 AD = ks::vec3(0.39, 0.305, 0.04);
+	ks::vec3 ATT = ks::vec3(0.3, 0.21, 0.11);
+	float betaR = 0.2;
 	float betaTT = 0.2;
 	float betaN = 0.6;
 	float d_b = 0.8;
@@ -439,6 +471,12 @@ public:
 	int										g_core_AO_texture_width;
 	int										g_core_AO_texture_height;
 
+	int										g_flyaway_texture_left;
+	int										g_flyaway_texture_right;
+	int										g_flyaway_texture_top = DEFAULT_HEIGHT / 2;
+	int										g_flyaway_texture_bot = DEFAULT_HEIGHT / 2;
+	int										g_regular_width;
+
 	GLint									DefaultShaderProgram;
 	GLuint									ttIntegralTex;
 	GLuint									rIntegralTex;
@@ -458,10 +496,10 @@ public:
 	GLuint 								    CoreAOTexs_Long[9];
 	GLuint									vertexArrays[VERTEX_ARRAY_COUNT];
 	GLuint									vboYarn[VBO_YARN_COUNT];
-	float biasValue = -5;
+	float biasValue = -10;
 	float mDelta_0 = 0.14;
 	float mDelta_1 = 1;
-	float mDelta_2 = 10;
+	float mDelta_2 = 1;
 
 	std::vector<int>						vboYarnVertStart;
 	int										vboYarnVertCount;
