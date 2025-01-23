@@ -2500,17 +2500,28 @@ void GLWidget::LoadIntegration(char* filename)
 }
 void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_num)
 {
-	array_Vertex.resize(0);
+	// array_Vertex.resize(0);
 	float arclen = 0;
+	int cnt = 0;
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++)
 	{
 		auto &yarn_start = first_ctrP_idx;
-		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] - 3; i++)
-		{
+		int start = yarn_start[yarn_idx];
+		int end = yarn_start[yarn_idx + 1];
+		for (int i = start; i < end; i ++ ){
 			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+
+			int i1 = i + 1; 
+			int i2 = i + 2;
+			int i3 = i + 3;
+			if (i3 >= end && (yarn_idx <= 16 && yarn_idx >= 9)) continue;
+			if (i1 >= end) i1 -= (end - start); 
+			if (i2 >= end) i2 -= (end - start);
+			if (i3 >= end) i3 -= (end - start);
+			ks::vec3 c1(Yarn_ctrPoints[i1 * 3], Yarn_ctrPoints[i1 * 3 + 1], Yarn_ctrPoints[i1 * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[i2 * 3], Yarn_ctrPoints[i2 * 3 + 1], Yarn_ctrPoints[i2 * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[i3 * 3], Yarn_ctrPoints[i3 * 3 + 1], Yarn_ctrPoints[i3 * 3 + 2]);
+			
 
 			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
 			float segmentArcLen = 0;
@@ -2522,26 +2533,46 @@ void GLWidget::update_yarn_buffer(float* Yarn_ctrPoints, int* first_ctrP_idx, in
 					segmentArcLen += (p - prevOne).norm();
 				prevOne = p;
 			}
-			array_Vertex.push_back(c0.x());
-			array_Vertex.push_back(c0.y());
-			array_Vertex.push_back(c0.z());
-			array_Vertex.push_back(arclen);
-			arclen += segmentArcLen;
+			// array_Vertex.push_back(c0.x());
+			// array_Vertex.push_back(c0.y());
+			// array_Vertex.push_back(c0.z());
 
-			array_Vertex.push_back(c1.x());
-			array_Vertex.push_back(c1.y());
-			array_Vertex.push_back(c1.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex[cnt++] = c0.x();
+			array_Vertex[cnt++] = c0.y();
+			array_Vertex[cnt++] = c0.z();
+			// array_Vertex.push_back(arclen);
+			// arclen += segmentArcLen;
+			cnt ++;
 
-			array_Vertex.push_back(c2.x());
-			array_Vertex.push_back(c2.y());
-			array_Vertex.push_back(c2.z());
-			array_Vertex.push_back(arclen);
+			// array_Vertex.push_back(c1.x());
+			// array_Vertex.push_back(c1.y());
+			// array_Vertex.push_back(c1.z());
+			array_Vertex[cnt ++] = c1.x();
+			array_Vertex[cnt ++] = c1.y();
+			array_Vertex[cnt ++] = c1.z();
+			cnt ++;
+			// array_Vertex.push_back(arclen);
 
-			array_Vertex.push_back(c3.x());
-			array_Vertex.push_back(c3.y());
-			array_Vertex.push_back(c3.z());
-			array_Vertex.push_back(arclen);
+			array_Vertex[cnt++] = c2.x();
+			array_Vertex[cnt++] = c2.y();
+			array_Vertex[cnt++] = c2.z();
+			cnt++;
+
+
+			// array_Vertex.push_back(c2.x());
+			// array_Vertex.push_back(c2.y());
+			// array_Vertex.push_back(c2.z());
+			// array_Vertex.push_back(arclen);
+
+			array_Vertex[cnt++] = c3.x();
+			array_Vertex[cnt++] = c3.y();
+			array_Vertex[cnt++] = c3.z();
+			cnt++;
+
+			// array_Vertex.push_back(c3.x());
+			// array_Vertex.push_back(c3.y());
+			// array_Vertex.push_back(c3.z());
+			// array_Vertex.push_back(arclen);
 
 		}
 	}
@@ -2554,11 +2585,22 @@ void GLWidget::render_task(float* Yarn_ctrPoints, int* first_ctrP_idx, int yarn_
 	float arclen = 0;
 	for (int yarn_idx = 0; yarn_idx < yarn_num - 1; yarn_idx++) {
 		auto &yarn_start = first_ctrP_idx;
-		for (int i = yarn_start[yarn_idx]; i < yarn_start[yarn_idx + 1] -3; i ++ ){
+		int start = yarn_start[yarn_idx];
+		int end = yarn_start[yarn_idx + 1];
+		for (int i = start; i < end; i ++ ){
 			ks::vec3 c0(Yarn_ctrPoints[i * 3], Yarn_ctrPoints[i * 3 + 1], Yarn_ctrPoints[i * 3 + 2]);
-			ks::vec3 c1(Yarn_ctrPoints[(i + 1) * 3], Yarn_ctrPoints[(i + 1) * 3 + 1], Yarn_ctrPoints[(i + 1) * 3 + 2]);
-			ks::vec3 c2(Yarn_ctrPoints[(i + 2) * 3], Yarn_ctrPoints[(i + 2) * 3 + 1], Yarn_ctrPoints[(i + 2) * 3 + 2]);
-			ks::vec3 c3(Yarn_ctrPoints[(i + 3) * 3], Yarn_ctrPoints[(i + 3) * 3 + 1], Yarn_ctrPoints[(i + 3) * 3 + 2]);
+
+			int i1 = i + 1; 
+			int i2 = i + 2;
+			int i3 = i + 3;
+			if (i3 >= end && (yarn_idx <= 16 && yarn_idx >= 9)) continue;
+			if (i1 >= end) i1 -= (end - start); 
+			if (i2 >= end) i2 -= (end - start);
+			if (i3 >= end) i3 -= (end - start);
+			ks::vec3 c1(Yarn_ctrPoints[i1 * 3], Yarn_ctrPoints[i1 * 3 + 1], Yarn_ctrPoints[i1 * 3 + 2]);
+			ks::vec3 c2(Yarn_ctrPoints[i2 * 3], Yarn_ctrPoints[i2 * 3 + 1], Yarn_ctrPoints[i2 * 3 + 2]);
+			ks::vec3 c3(Yarn_ctrPoints[i3 * 3], Yarn_ctrPoints[i3 * 3 + 1], Yarn_ctrPoints[i3 * 3 + 2]);
+
 
 			ks::vec3 prevOne = ks::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
 			float segmentArcLen = 0;
